@@ -1,0 +1,46 @@
+MARKYS PDV - PACOTE PARA WINDOWS 11
+====================================
+
+CONTEUDO
+- MARKYS-PDV-windows-amd64.exe: servidor do sistema, com ícone MARKYS e abertura automática do navegador.
+- INICIAR-MARKYS-PDV.bat: inicia o servidor com o banco na pasta do pacote.
+- MARKYS-PDV.ico: ícone da aplicação gerado a partir de cmd\pdv\web\logo.png.
+- data\markys-pdv.db: banco de dados criado automaticamente na primeira execucao.
+
+INSTALACAO INICIAL
+1. Crie uma pasta permanente, por exemplo C:\MARKYS-PDV.
+2. Extraia TODOS os arquivos do ZIP para essa pasta.
+3. Para iniciar, dê duplo clique em MARKYS-PDV-windows-amd64.exe ou em INICIAR-MARKYS-PDV.bat.
+4. O servidor será iniciado e o navegador padrão tentará abrir http://localhost:8080 automaticamente.
+5. Na primeira execução, crie o primeiro administrador com uma senha forte e exclusiva.
+6. Mantenha a janela do servidor aberta enquanto o PDV estiver em uso.
+
+ACESSO POR OUTROS COMPUTADORES
+1. Configure o computador servidor para usar um IP local fixo ou uma reserva DHCP.
+2. No servidor, permita a porta TCP 8080 somente no perfil de rede Privada do Windows Firewall.
+   O comando abaixo pode ser executado no PowerShell como Administrador, depois de confirmar
+   que a rede do Windows está marcada como Privada:
+   New-NetFirewallRule -DisplayName "MARKYS PDV LAN 8080" -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow -Profile Private
+3. Nos demais computadores da mesma rede, abra http://IP-DO-SERVIDOR:8080.
+4. Não encaminhe a porta 8080 para a internet nem exponha o sistema publicamente.
+
+DADOS E ATUALIZACOES
+- O banco principal fica em data\markys-pdv.db dentro desta pasta quando iniciado pelo BAT.
+- Mantenha toda a pasta data em local persistente. Não execute o sistema a partir de uma pasta
+  temporária nem apague data ao atualizar.
+- Antes de atualizar, encerre o servidor e copie a pasta data para um local seguro.
+- Teste periodicamente a recuperação do backup. O sistema disponibiliza download de backup,
+  mas a restauração pela interface não está implementada nesta versão.
+- As sessões de login ficam em memória e serão encerradas quando o servidor reiniciar.
+
+VALIDACAO ANTES DE USO REAL
+- Faça uma venda de teste e confira pagamento, estoque e fechamento de caixa.
+- Teste as permissões de cada perfil de usuário.
+- Teste o acesso a partir de outro computador.
+- Valide leitor de código de barras e impressora que a loja utiliza.
+- O sistema não emite NF-e nem NFC-e nesta versão.
+
+IMPORTANTE
+Este pacote facilita a inicialização, mas não é um instalador MSI e não instala um serviço
+automático do Windows. Para manter o sistema funcionando, a janela do servidor deve permanecer
+aberta. O uso em produção depende dos testes operacionais, de segurança e de recuperação.

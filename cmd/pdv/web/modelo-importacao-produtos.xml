@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<produtos>
+  <!-- Um elemento <produto> por item. Nome e preco_venda são obrigatórios. -->
+  <produto>
+    <codigo>EX-001</codigo>
+    <nome>Produto de exemplo</nome>
+    <unidade>UN</unidade>
+    <preco_venda>12.50</preco_venda>
+    <preco_custo>7.00</preco_custo>
+    <codigo_barras>7890000000010</codigo_barras>
+    <categoria>Exemplos</categoria>
+    <ncm></ncm>
+    <cest></cest>
+    <cfop></cfop>
+    <origem_tributaria></origem_tributaria>
+    <imagem_url></imagem_url>
+  </produto>
+  <produto>
+    <codigo>EX-002</codigo>
+    <nome>Outro produto de exemplo</nome>
+    <unidade>UN</unidade>
+    <preco_venda>5.90</preco_venda>
+    <preco_custo>3.20</preco_custo>
+    <codigo_barras></codigo_barras>
+    <categoria>Bebidas</categoria>
+    <ncm></ncm>
+    <cest></cest>
+    <cfop></cfop>
+    <origem_tributaria></origem_tributaria>
+    <imagem_url>https://example.com/produto.jpg</imagem_url>
+  </produto>
+</produtos>

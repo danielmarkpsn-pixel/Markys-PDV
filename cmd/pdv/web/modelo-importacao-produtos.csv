@@ -1,0 +1,3 @@
+codigo,nome,unidade,preco_venda,preco_custo,codigo_barras,categoria,ncm,cest,cfop,origem_tributaria,imagem_url
+EX-001,Produto de exemplo,UN,12.50,7.00,7890000000010,Exemplos,,,,,
+EX-002,Outro produto de exemplo,UN,5.90,3.20,,Bebidas,,,,,https://example.com/produto.jpg

@@ -32,6 +32,13 @@ O **MARKYS PDV** é uma aplicação de ponto de venda para pequenos ambientes co
 - Registro de operações relevantes na auditoria.
 - Download de backup consistente do banco SQLite pela área administrativa.
 
+
+### Gerador de orçamentos (em desenvolvimento)
+- Acesse `http://localhost:8080/orcamentos.html` após entrar no sistema.
+- Monte propostas com produtos cadastrados ou itens/serviços digitados, dados do cliente, desconto, validade e observações.
+- Salve e consulte orçamentos, marque-os como aprovados/recusados e use a impressão do navegador para salvar em PDF.
+- Os orçamentos ficam armazenados no banco SQLite da empresa e não movimentam estoque nem caixa.
+
 ## Requisitos
 
 - Windows para executar o binário Windows x64 publicado pelo workflow.

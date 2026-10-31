@@ -621,6 +621,7 @@ async function activateView(target,button){
  document.querySelector('#posLogoutButton').hidden=!(loggedUser&&loggedUser.role==='cashier')||target!=='view-sale';
  const activeModule=button&&button.closest('.module-menu');if(activeModule){document.querySelectorAll('.module-menu').forEach(m=>m.open=m===activeModule)}
  if(target==='view-clients')loadCustomers();
+ if(target==='view-quotes')quoteInit();
  if(target==='view-sale')loadSaleCustomers();
  if(target==="view-productList")renderProducts();
  if(target==="stockOps")loadMovements();

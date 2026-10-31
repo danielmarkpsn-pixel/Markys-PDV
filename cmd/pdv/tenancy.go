@@ -153,6 +153,7 @@ func (a *App) serveTenant(w http.ResponseWriter,r *http.Request) {
 	mux.HandleFunc("/api/suppliers",app.catalog("suppliers"))
 	mux.HandleFunc("/api/customers",app.customers)
 	mux.HandleFunc("/api/sales",app.sales)
+	mux.HandleFunc("/api/quotes",app.quotes)
 	mux.HandleFunc("/api/cash",app.cash)
 	app.authMiddleware(mux).ServeHTTP(w,r)
 }

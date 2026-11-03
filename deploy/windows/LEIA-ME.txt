@@ -1,62 +1,55 @@
-MARKYS PDV - PACOTE PARA WINDOWS 11
-====================================
+MARKYS PDV - PACOTE PARA WINDOWS
+=================================
 
-CONTEUDO
-- MARKYS-PDV-windows-amd64.exe: servidor do sistema, com icone MARKYS e abertura automatica do navegador.
-- INICIAR-MARKYS-PDV.bat: inicia o servidor com o banco na pasta do pacote.
-- CONFIGURAR-SERVIDOR-LAN.ps1: libera o acesso TCP 8080 somente na rede Privada local e mostra os IPs do servidor.
-- CONFIGURAR-CLIENTE.ps1: configura o nome markyspdv.local em cada computador cliente.
-- data\markys-pdv.db: banco de dados criado automaticamente na primeira execucao.
+ARQUIVOS
+- MARKYS-PDV-windows-amd64.exe: servidor do sistema.
+- INICIAR-MARKYS-PDV.bat: inicia o servidor, configura o acesso local e registra a inicializacao automatica no Windows.
+- CONFIGURAR-SERVIDOR-LAN.ps1: cria a regra de Firewall TCP 2222, restrita à rede Privada local.
+- MARKYS-PDV.ico: icone do aplicativo.
+- data\markys-pdv.db: banco criado automaticamente na primeira execucao.
 
-INSTALACAO DO COMPUTADOR PRINCIPAL
+COMPUTADOR PRINCIPAL
 1. Crie uma pasta permanente, por exemplo C:\MARKYS-PDV.
 2. Extraia TODOS os arquivos do ZIP para essa pasta.
-3. Conecte o computador principal ao roteador por cabo ou Wi-Fi.
-4. Execute CONFIGURAR-SERVIDOR-LAN.ps1 com permissao de Administrador.
-5. No roteador, crie uma reserva DHCP para manter fixo o IP mostrado pelo script.
-6. Inicie o sistema por INICIAR-MARKYS-PDV.bat.
-7. Na primeira execucao, crie o primeiro administrador com uma senha forte e exclusiva.
-8. Mantenha a janela do servidor aberta enquanto o PDV estiver em uso.
+3. Conecte o computador ao roteador por cabo ou Wi-Fi.
+4. Execute INICIAR-MARKYS-PDV.bat.
+5. Na primeira execucao, autorize a solicitacao do Firewall do Windows para liberar TCP 2222 na rede local. A regra fica limitada ao perfil Privado e à sub-rede local.
+6. Na primeira execucao, crie a conta de administrador.
+7. Mantenha a janela do servidor aberta enquanto utilizar o PDV.
 
-CONFIGURAR CADA COMPUTADOR CLIENTE
-1. Conecte o cliente ao mesmo roteador do servidor, por cabo ou Wi-Fi.
-2. Execute CONFIGURAR-CLIENTE.ps1 como Administrador.
-3. Informe o IP reservado do computador principal quando solicitado. Exemplo:
-   powershell -ExecutionPolicy Bypass -File .\CONFIGURAR-CLIENTE.ps1 -IPServidor 192.168.0.10
-4. Abra http://markyspdv.local:8080 no navegador.
-5. Entre com o usuario cadastrado no servidor. Os dados sao os mesmos em todos os computadores.
+O inicializador cria um atalho na pasta Inicializar do Windows. Nos proximos logins desse mesmo usuario, o servidor sera iniciado automaticamente. O computador principal precisa estar ligado e conectado à rede.
 
-IMPORTANTE SOBRE O NOME
-O nome markyspdv.local e configurado no arquivo hosts de cada cliente para funcionar
-sem depender de suporte mDNS ou DNS especial do roteador. Se o IP do servidor mudar,
-reserve o novo IP no roteador e execute novamente o script nos clientes.
+OUTROS COMPUTADORES (CLIENTES)
+1. Conecte cada computador à mesma rede Wi-Fi ou cabeada do servidor.
+2. Abra Chrome, Edge ou outro navegador atualizado.
+3. Acesse http://markyspdv.local:2222.
+4. Entre com o usuario cadastrado no servidor.
 
-REDE E FIREWALL
-- O servidor escuta em 0.0.0.0:8080 para aceitar conexoes da rede local.
-- O script do servidor cria uma regra TCP 8080 limitada ao perfil Privado e a sub-rede local.
-- Se a rede do Windows estiver como Publica, altere-a para Privada apenas se for uma rede
-  confiavel. Nao libere a porta em redes publicas.
-- Nao encaminhe a porta 8080 para a internet nem exponha o sistema publicamente.
-- O computador principal deve permanecer ligado e conectado a rede para os clientes acessarem.
+Os clientes NAO precisam instalar o Markys PDV, executar scripts ou alterar o arquivo hosts. O nome markyspdv.local e anunciado automaticamente pelo servidor via mDNS.
+
+Se markyspdv.local nao resolver em uma rede especifica, use o endereco IPv4 exibido pelo Windows no computador principal, seguido de :2222. Exemplo: http://192.168.0.10:2222. O mDNS pode ser bloqueado por isolamento de clientes Wi-Fi, roteadores ou politicas corporativas.
+
+REDE E SEGURANCA
+- Todos os computadores devem estar na mesma rede local.
+- O servidor escuta em 0.0.0.0:2222.
+- O Firewall libera TCP 2222 somente no perfil Privado e para a sub-rede local.
+- Se a rede do Windows estiver como Publica, altere para Privada somente se for uma rede confiavel.
+- Nao encaminhe a porta 2222 para a internet nem exponha o sistema publicamente.
+- O acesso HTTP nao usa criptografia; utilize somente em rede local confiavel.
 
 DADOS E ATUALIZACOES
-- O banco principal fica em data\markys-pdv.db dentro desta pasta.
-- Mantenha toda a pasta data em local persistente. Nao execute o sistema a partir de pasta
-  temporaria nem apague data ao atualizar.
+- O banco principal fica em data\markys-pdv.db dentro da pasta do servidor.
+- Mantenha a pasta data em local permanente. Nao a apague ao atualizar.
 - Antes de atualizar, encerre o servidor e copie a pasta data para um local seguro.
-- Teste periodicamente a recuperacao do backup. O sistema disponibiliza download de backup,
-  mas a restauracao pela interface nao esta implementada nesta versao.
+- Teste periodicamente a recuperacao do backup.
 - As sessoes de login ficam em memoria e serao encerradas quando o servidor reiniciar.
 
-VALIDACAO ANTES DE USO REAL
-- Teste acesso simultaneo por cabo e Wi-Fi.
-- Faca uma venda de teste e confira pagamento, estoque e fechamento de caixa.
+VALIDACAO ANTES DO USO REAL
+- Teste acesso simultaneo por Wi-Fi e cabo.
+- Faca vendas de teste e confira pagamentos, estoque e fechamento de caixa.
 - Teste as permissoes de cada perfil de usuario.
-- Valide leitor de codigo de barras e impressora que a loja utiliza.
+- Valide leitor de codigo de barras e impressora utilizados pela loja.
 - O sistema nao emite NF-e nem NFC-e nesta versao.
 
 IMPORTANTE
-Este pacote facilita a inicializacao, mas nao e um instalador MSI e nao instala um servico
-automatico do Windows. Para manter o sistema funcionando, a janela do servidor deve
-permanecer aberta. O acesso HTTP e adequado somente a uma rede local confiavel.
-O uso em producao depende dos testes operacionais, de seguranca e de recuperacao.
+O pacote ainda nao e um instalador MSI nem um servico Windows. A inicializacao automatica e feita pelo atalho na pasta Inicializar do usuario. Para os clientes acessarem, o usuario do Windows no computador principal precisa estar conectado e o servidor em execucao.

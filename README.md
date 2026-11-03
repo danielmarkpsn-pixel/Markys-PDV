@@ -23,7 +23,7 @@ O **MARKYS PDV** funciona com um computador principal como servidor. Os demais c
 1. Extraia todos os arquivos do pacote para uma pasta permanente, por exemplo `C:\MARKYS-PDV`.
 2. Conecte o computador ao roteador por cabo ou Wi-Fi.
 3. Execute `INICIAR-MARKYS-PDV.bat`.
-4. Na primeira execução, o Windows solicitará autorização de administrador para criar uma regra de Firewall TCP 2222. Autorize somente se estiver em uma rede privada e confiável.
+4. Na primeira execução, o Windows solicitará autorização de administrador para criar regras de Firewall para TCP 2222 e UDP 5353. Autorize somente se estiver em uma rede privada e confiável.
 5. Na primeira execução, crie a conta de administrador.
 6. Mantenha a janela do servidor aberta enquanto o PDV estiver em uso.
 

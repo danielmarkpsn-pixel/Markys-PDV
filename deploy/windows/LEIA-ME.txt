@@ -33,7 +33,7 @@ Se markyspdv.local nao resolver em uma rede especifica, use o endereco IPv4 exib
 REDE E SEGURANCA
 - Todos os computadores devem estar na mesma rede local.
 - O servidor escuta em 0.0.0.0:2222.
-- O Firewall libera TCP 2222 somente no perfil Privado e para a sub-rede local.
+- O Firewall libera TCP 2222 (PDV) e UDP 5353 (mDNS) somente no perfil Privado e para a sub-rede local.
 - Se a rede do Windows estiver como Publica, altere para Privada somente se for uma rede confiavel.
 - Nao encaminhe a porta 2222 para a internet nem exponha o sistema publicamente.
 - O acesso HTTP nao usa criptografia; utilize somente em rede local confiavel.

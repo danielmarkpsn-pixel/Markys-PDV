@@ -20,13 +20,10 @@ func startLocalDiscovery(port int) *zeroconf.Server {
 	}
 	var active []net.Interface
 	for _, iface := range interfaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback == 0 && iface.Flags&net.FlagMulticast == 0 {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagMulticast == 0 {
 			continue
 		}
 		active = append(active, iface)
-		if iface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
 		addrs, err := iface.Addrs()
 		if err != nil {
 			continue

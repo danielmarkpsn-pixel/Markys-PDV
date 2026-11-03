@@ -109,4 +109,4 @@ func (a *App) quotes(w http.ResponseWriter, r *http.Request) {
 
 type quoteScanner interface { Scan(...any) error }
 func scanQuote(s quoteScanner)(Quote,error){var q Quote;var raw string;err:=s.Scan(&q.ID,&q.Number,&q.CustomerID,&q.Customer,&q.Document,&q.Phone,&q.Address,&q.Seller,&raw,&q.Subtotal,&q.Discount,&q.Total,&q.ValidUntil,&q.Notes,&q.Status,&q.CreatedAt);if err!=nil{return q,err};if err=json.Unmarshal([]byte(raw),&q.Items);err!=nil{return q,err};return q,nil}
-func readQuote(db *sql.DB,id int64)(Quote,error){return scanQuote(db.QueryRow(`SELECT id,quote_number,COALESCE(customer_id,0),customer_name,customer_document,customer_phone,customer_address,items_json,subtotal_cents,discount_cents,total_cents,valid_until,notes,status,created_at FROM quotes WHERE id=?`,id))}
+func readQuote(db *sql.DB,id int64)(Quote,error){return scanQuote(db.QueryRow(`SELECT id,quote_number,COALESCE(customer_id,0),customer_name,customer_document,customer_phone,customer_address,seller,items_json,subtotal_cents,discount_cents,total_cents,valid_until,notes,status,created_at FROM quotes WHERE id=?`,id))}

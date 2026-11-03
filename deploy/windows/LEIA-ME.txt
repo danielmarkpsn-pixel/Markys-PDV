@@ -4,7 +4,7 @@ MARKYS PDV - PACOTE PARA WINDOWS
 ARQUIVOS
 - MARKYS-PDV-windows-amd64.exe: servidor do sistema.
 - INICIAR-MARKYS-PDV.bat: inicia o servidor, configura o acesso local e registra a inicializacao automatica no Windows.
-- CONFIGURAR-SERVIDOR-LAN.ps1: cria a regra de Firewall TCP 2222, restrita à rede Privada local.
+- CONFIGURAR-SERVIDOR-LAN.ps1: cria regras de Firewall TCP 2222 e UDP 5353, restritas à rede Privada local.
 - REGISTRAR-INICIALIZACAO.ps1: registra a inicializacao automatica do servidor no login do Windows.
 - MARKYS-PDV.ico: icone do aplicativo.
 - data\markys-pdv.db: banco criado automaticamente na primeira execucao.
@@ -14,7 +14,7 @@ COMPUTADOR PRINCIPAL
 2. Extraia TODOS os arquivos do ZIP para essa pasta.
 3. Conecte o computador ao roteador por cabo ou Wi-Fi.
 4. Execute INICIAR-MARKYS-PDV.bat.
-5. Na primeira execucao, autorize a solicitacao do Firewall do Windows para liberar TCP 2222 na rede local. A regra fica limitada ao perfil Privado e à sub-rede local.
+5. Na primeira execucao, autorize a solicitacao do Firewall do Windows para liberar TCP 2222 e UDP 5353 na rede local. As regras ficam limitadas ao perfil Privado e à sub-rede local.
 6. Na primeira execucao, crie a conta de administrador.
 7. Mantenha a janela do servidor aberta enquanto utilizar o PDV.
 

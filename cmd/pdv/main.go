@@ -94,8 +94,7 @@ func main() {
 	mux.HandleFunc("/api/admin/equipment", a.equipment)
 	mux.Handle("/", http.FileServer(http.FS(webRoot)))
 	srv := &http.Server{Addr: env("PDV_ADDR", "0.0.0.0:2222"), Handler: headers(a.rootHandler(mux)), ReadHeaderTimeout: 5*time.Second}
-	mdnsServer := startLocalDiscovery(2222)
-	if mdnsServer != nil { defer mdnsServer.Shutdown() }
+	startLocalDiscovery(2222)
 	log.Printf("MARKYS PDV listening on %s", srv.Addr)
 	openBrowserWhenReady()
 	log.Fatal(srv.ListenAndServe())

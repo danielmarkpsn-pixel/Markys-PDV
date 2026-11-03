@@ -55,6 +55,8 @@ jobs:
         run: |
           cp deploy/windows/INICIAR-MARKYS-PDV.bat dist/pacote/
           cp deploy/windows/LEIA-ME.txt dist/pacote/
+          cp deploy/windows/CONFIGURAR-SERVIDOR-LAN.ps1 dist/pacote/
+          cp deploy/windows/CONFIGURAR-CLIENTE.ps1 dist/pacote/
           cp dist/MARKYS-PDV.ico dist/pacote/
       - uses: actions/upload-artifact@v4
         with:

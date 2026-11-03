@@ -45,7 +45,7 @@ Não é necessário instalar o Markys PDV, editar o arquivo hosts ou executar sc
 | `PDV_ADDR` | `0.0.0.0:2222` | Escuta HTTP nas interfaces de rede do servidor |
 | `PDV_DB` | `data/markys-pdv.db` | Banco SQLite no computador principal |
 
-A regra de Firewall permite TCP 2222 somente no perfil Privado e na sub-rede local. Não encaminhe essa porta para a internet. Se a rede do Windows estiver como Pública, altere para Privada somente quando for uma rede confiável.
+As regras do Firewall permitem TCP 2222 (PDV) e UDP 5353 (descoberta mDNS) somente no perfil Privado e na sub-rede local. Não encaminhe essa porta para a internet. Se a rede do Windows estiver como Pública, altere para Privada somente quando for uma rede confiável.
 
 ## Dados e backups
 

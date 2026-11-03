@@ -5,6 +5,7 @@ ARQUIVOS
 - MARKYS-PDV-windows-amd64.exe: servidor do sistema.
 - INICIAR-MARKYS-PDV.bat: inicia o servidor, configura o acesso local e registra a inicializacao automatica no Windows.
 - CONFIGURAR-SERVIDOR-LAN.ps1: cria a regra de Firewall TCP 2222, restrita à rede Privada local.
+- REGISTRAR-INICIALIZACAO.ps1: registra a inicializacao automatica do servidor no login do Windows.
 - MARKYS-PDV.ico: icone do aplicativo.
 - data\markys-pdv.db: banco criado automaticamente na primeira execucao.
 

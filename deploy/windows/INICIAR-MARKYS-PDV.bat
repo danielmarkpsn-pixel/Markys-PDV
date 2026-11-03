@@ -25,8 +25,8 @@ if errorlevel 1 (
   echo O acesso por outros computadores pode nao funcionar.
 )
 
-REM Registra este inicializador para abrir automaticamente no proximo login do Windows.
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$startup=[Environment]::GetFolderPath('Startup'); $shortcut=Join-Path $startup 'MARKYS PDV Servidor.lnk'; if (-not (Test-Path $shortcut)) { $shell=New-Object -ComObject WScript.Shell; $link=$shell.CreateShortcut($shortcut); $link.TargetPath=$env:ComSpec; $link.Arguments='/c ""%~dp0INICIAR-MARKYS-PDV.bat""'; $link.WorkingDirectory='%~dp0'; $link.Description='Iniciar servidor MARKYS PDV'; $link.Save() }"
+REM Registra o servidor para iniciar automaticamente no proximo login do Windows.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0REGISTRAR-INICIALIZACAO.ps1"
 
 echo.
 echo Servidor local: http://localhost:2222

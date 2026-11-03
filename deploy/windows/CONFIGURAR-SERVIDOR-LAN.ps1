@@ -1,21 +1,28 @@
 #requires -Version 5.1
 $ErrorActionPreference = "Stop"
-$ruleName = "MARKYS PDV LAN TCP 2222"
+$tcpRuleName = "MARKYS PDV LAN TCP 2222"
+$mdnsRuleName = "MARKYS PDV mDNS UDP 5353"
 
-$existing = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
-if (-not $existing) {
+$tcpRule = Get-NetFirewallRule -DisplayName $tcpRuleName -ErrorAction SilentlyContinue
+$mdnsRule = Get-NetFirewallRule -DisplayName $mdnsRuleName -ErrorAction SilentlyContinue
+if (-not $tcpRule -or -not $mdnsRule) {
     $principal = [Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        Write-Host "O Windows vai solicitar autorizacao uma unica vez para liberar o acesso local do Markys PDV."
+        Write-Host "O Windows vai solicitar autorizacao para liberar o acesso do Markys PDV somente na rede local."
         $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
         Start-Process powershell.exe -Verb RunAs -Wait -ArgumentList $arguments
         exit
     }
-
-    New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Action Allow -Protocol TCP -LocalPort 2222 -Profile Private -RemoteAddress LocalSubnet | Out-Null
-    Write-Host "Regra criada: TCP 2222, somente rede Privada e dispositivos da rede local." -ForegroundColor Green
+    if (-not $tcpRule) {
+        New-NetFirewallRule -DisplayName $tcpRuleName -Direction Inbound -Action Allow -Protocol TCP -LocalPort 2222 -Profile Private -RemoteAddress LocalSubnet | Out-Null
+        Write-Host "Regra TCP 2222 criada para a rede Privada local." -ForegroundColor Green
+    }
+    if (-not $mdnsRule) {
+        New-NetFirewallRule -DisplayName $mdnsRuleName -Direction Inbound -Action Allow -Protocol UDP -LocalPort 5353 -Profile Private -RemoteAddress LocalSubnet | Out-Null
+        Write-Host "Regra mDNS UDP 5353 criada para a rede Privada local." -ForegroundColor Green
+    }
 } else {
-    Write-Host "Firewall ja configurado para o Markys PDV (TCP 2222)."
+    Write-Host "Firewall ja configurado para o Markys PDV (TCP 2222 e mDNS UDP 5353)."
 }
 
 $profiles = Get-NetConnectionProfile -ErrorAction SilentlyContinue

@@ -18,9 +18,15 @@ echo ============================================
 echo          MARKYS PDV - SERVIDOR
 echo ============================================
 echo.
-echo O navegador sera aberto automaticamente em http://localhost:8080
-echo Dados locais: "%PDV_DB%"
-echo Nos outros computadores, use o IP deste PC seguido de :8080.
+echo Este computador sera o servidor do Markys PDV.
+echo Navegador local: http://localhost:8080
+echo Acesso dos clientes: http://markyspdv.local:8080
+echo.
+echo Antes do primeiro uso na rede:
+echo 1. Execute CONFIGURAR-SERVIDOR-LAN.ps1 como administrador.
+echo 2. Reserve o IP deste computador no roteador.
+echo 3. Em cada cliente, execute CONFIGURAR-CLIENTE.ps1 como administrador,
+echo    informando o IP reservado do servidor.
 echo.
 echo Mantenha esta janela aberta enquanto usar o PDV.
 echo Para encerrar, pressione Ctrl+C nesta janela.

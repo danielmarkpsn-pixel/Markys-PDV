@@ -2,45 +2,61 @@ MARKYS PDV - PACOTE PARA WINDOWS 11
 ====================================
 
 CONTEUDO
-- MARKYS-PDV-windows-amd64.exe: servidor do sistema, com ícone MARKYS e abertura automática do navegador.
+- MARKYS-PDV-windows-amd64.exe: servidor do sistema, com icone MARKYS e abertura automatica do navegador.
 - INICIAR-MARKYS-PDV.bat: inicia o servidor com o banco na pasta do pacote.
-- MARKYS-PDV.ico: ícone da aplicação gerado a partir de cmd\pdv\web\logo.png.
+- CONFIGURAR-SERVIDOR-LAN.ps1: libera o acesso TCP 8080 somente na rede Privada local e mostra os IPs do servidor.
+- CONFIGURAR-CLIENTE.ps1: configura o nome markyspdv.local em cada computador cliente.
 - data\markys-pdv.db: banco de dados criado automaticamente na primeira execucao.
 
-INSTALACAO INICIAL
+INSTALACAO DO COMPUTADOR PRINCIPAL
 1. Crie uma pasta permanente, por exemplo C:\MARKYS-PDV.
 2. Extraia TODOS os arquivos do ZIP para essa pasta.
-3. Para iniciar, dê duplo clique em MARKYS-PDV-windows-amd64.exe ou em INICIAR-MARKYS-PDV.bat.
-4. O servidor será iniciado e o navegador padrão tentará abrir http://localhost:8080 automaticamente.
-5. Na primeira execução, crie o primeiro administrador com uma senha forte e exclusiva.
-6. Mantenha a janela do servidor aberta enquanto o PDV estiver em uso.
+3. Conecte o computador principal ao roteador por cabo ou Wi-Fi.
+4. Execute CONFIGURAR-SERVIDOR-LAN.ps1 com permissao de Administrador.
+5. No roteador, crie uma reserva DHCP para manter fixo o IP mostrado pelo script.
+6. Inicie o sistema por INICIAR-MARKYS-PDV.bat.
+7. Na primeira execucao, crie o primeiro administrador com uma senha forte e exclusiva.
+8. Mantenha a janela do servidor aberta enquanto o PDV estiver em uso.
 
-ACESSO POR OUTROS COMPUTADORES
-1. Configure o computador servidor para usar um IP local fixo ou uma reserva DHCP.
-2. No servidor, permita a porta TCP 8080 somente no perfil de rede Privada do Windows Firewall.
-   O comando abaixo pode ser executado no PowerShell como Administrador, depois de confirmar
-   que a rede do Windows está marcada como Privada:
-   New-NetFirewallRule -DisplayName "MARKYS PDV LAN 8080" -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow -Profile Private
-3. Nos demais computadores da mesma rede, abra http://IP-DO-SERVIDOR:8080.
-4. Não encaminhe a porta 8080 para a internet nem exponha o sistema publicamente.
+CONFIGURAR CADA COMPUTADOR CLIENTE
+1. Conecte o cliente ao mesmo roteador do servidor, por cabo ou Wi-Fi.
+2. Execute CONFIGURAR-CLIENTE.ps1 como Administrador.
+3. Informe o IP reservado do computador principal quando solicitado. Exemplo:
+   powershell -ExecutionPolicy Bypass -File .\CONFIGURAR-CLIENTE.ps1 -IPServidor 192.168.0.10
+4. Abra http://markyspdv.local:8080 no navegador.
+5. Entre com o usuario cadastrado no servidor. Os dados sao os mesmos em todos os computadores.
+
+IMPORTANTE SOBRE O NOME
+O nome markyspdv.local e configurado no arquivo hosts de cada cliente para funcionar
+sem depender de suporte mDNS ou DNS especial do roteador. Se o IP do servidor mudar,
+reserve o novo IP no roteador e execute novamente o script nos clientes.
+
+REDE E FIREWALL
+- O servidor escuta em 0.0.0.0:8080 para aceitar conexoes da rede local.
+- O script do servidor cria uma regra TCP 8080 limitada ao perfil Privado e a sub-rede local.
+- Se a rede do Windows estiver como Publica, altere-a para Privada apenas se for uma rede
+  confiavel. Nao libere a porta em redes publicas.
+- Nao encaminhe a porta 8080 para a internet nem exponha o sistema publicamente.
+- O computador principal deve permanecer ligado e conectado a rede para os clientes acessarem.
 
 DADOS E ATUALIZACOES
-- O banco principal fica em data\markys-pdv.db dentro desta pasta quando iniciado pelo BAT.
-- Mantenha toda a pasta data em local persistente. Não execute o sistema a partir de uma pasta
-  temporária nem apague data ao atualizar.
+- O banco principal fica em data\markys-pdv.db dentro desta pasta.
+- Mantenha toda a pasta data em local persistente. Nao execute o sistema a partir de pasta
+  temporaria nem apague data ao atualizar.
 - Antes de atualizar, encerre o servidor e copie a pasta data para um local seguro.
-- Teste periodicamente a recuperação do backup. O sistema disponibiliza download de backup,
-  mas a restauração pela interface não está implementada nesta versão.
-- As sessões de login ficam em memória e serão encerradas quando o servidor reiniciar.
+- Teste periodicamente a recuperacao do backup. O sistema disponibiliza download de backup,
+  mas a restauracao pela interface nao esta implementada nesta versao.
+- As sessoes de login ficam em memoria e serao encerradas quando o servidor reiniciar.
 
 VALIDACAO ANTES DE USO REAL
-- Faça uma venda de teste e confira pagamento, estoque e fechamento de caixa.
-- Teste as permissões de cada perfil de usuário.
-- Teste o acesso a partir de outro computador.
-- Valide leitor de código de barras e impressora que a loja utiliza.
-- O sistema não emite NF-e nem NFC-e nesta versão.
+- Teste acesso simultaneo por cabo e Wi-Fi.
+- Faca uma venda de teste e confira pagamento, estoque e fechamento de caixa.
+- Teste as permissoes de cada perfil de usuario.
+- Valide leitor de codigo de barras e impressora que a loja utiliza.
+- O sistema nao emite NF-e nem NFC-e nesta versao.
 
 IMPORTANTE
-Este pacote facilita a inicialização, mas não é um instalador MSI e não instala um serviço
-automático do Windows. Para manter o sistema funcionando, a janela do servidor deve permanecer
-aberta. O uso em produção depende dos testes operacionais, de segurança e de recuperação.
+Este pacote facilita a inicializacao, mas nao e um instalador MSI e nao instala um servico
+automatico do Windows. Para manter o sistema funcionando, a janela do servidor deve
+permanecer aberta. O acesso HTTP e adequado somente a uma rede local confiavel.
+O uso em producao depende dos testes operacionais, de seguranca e de recuperacao.

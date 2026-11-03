@@ -96,12 +96,30 @@ func (a *App) authCompanies(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) companyBranding(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet { w.Header().Set("Allow","GET");http.Error(w,"Método não permitido",405);return }
-	type branding struct { ID int64 `json:"company_id"`; Name string `json:"company_name"`; ThemeColor string `json:"theme_color"`; LogoDataURL string `json:"logo_data_url"` }
-	if a.companyID==0 { jsonOut(w,200,branding{ID:0,Name:"Empresa principal",ThemeColor:"#1677e8"});return }
+	if r.Method != http.MethodGet { w.Header().Set("Allow","GET"); http.Error(w,"Método não permitido",405); return }
+	type branding struct {
+		ID int64 `json:"company_id"`
+		Name string `json:"company_name"`
+		LegalName string `json:"legal_name"`
+		TradeName string `json:"trade_name"`
+		CNPJ string `json:"cnpj"`
+		UF string `json:"uf"`
+		TaxRegime string `json:"tax_regime"`
+		ThemeColor string `json:"theme_color"`
+		LogoDataURL string `json:"logo_data_url"`
+	}
 	var b branding
-	err:=a.masterDB.QueryRow("SELECT id,COALESCE(NULLIF(trade_name,''),legal_name),theme_color,logo_data_url FROM companies WHERE id=? AND status='active'",a.companyID).Scan(&b.ID,&b.Name,&b.ThemeColor,&b.LogoDataURL)
-	if err!=nil { http.Error(w,"Configuração visual da empresa não encontrada",404);return }
+	if a.companyID > 0 {
+		err := a.masterDB.QueryRow("SELECT id,COALESCE(NULLIF(trade_name,''),legal_name),legal_name,trade_name,document,theme_color,logo_data_url FROM companies WHERE id=? AND status='active'",a.companyID).Scan(&b.ID,&b.Name,&b.LegalName,&b.TradeName,&b.CNPJ,&b.ThemeColor,&b.LogoDataURL)
+		if err != nil { http.Error(w,"Configuração visual da empresa não encontrada",404); return }
+	} else {
+		b.ID=0
+		b.Name="Empresa principal"
+		b.ThemeColor="#1677e8"
+	}
+	// Fiscal/business identity is stored per company in the selected tenant database.
+	_ = a.db.QueryRow("SELECT legal_name,trade_name,cnpj,uf,tax_regime FROM store_settings WHERE id=1").Scan(&b.LegalName,&b.TradeName,&b.CNPJ,&b.UF,&b.TaxRegime)
+	if strings.TrimSpace(b.TradeName)!="" { b.Name=b.TradeName } else if strings.TrimSpace(b.LegalName)!="" { b.Name=b.LegalName }
 	jsonOut(w,200,b)
 }
 

@@ -1,8 +1,8 @@
+#requires -Version 5.1
 param(
     [Parameter(Mandatory = $true)]
     [string]$IPServidor
 )
-#requires -Version 5.1
 $ErrorActionPreference = "Stop"
 
 $parsedIP = $null

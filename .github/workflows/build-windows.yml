@@ -1,7 +1,7 @@
 name: Build MARKYS PDV Windows
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "feature/**"]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -56,6 +56,7 @@ jobs:
           cp deploy/windows/INICIAR-MARKYS-PDV.bat dist/pacote/
           cp deploy/windows/LEIA-ME.txt dist/pacote/
           cp deploy/windows/CONFIGURAR-SERVIDOR-LAN.ps1 dist/pacote/
+          cp deploy/windows/REGISTRAR-INICIALIZACAO.ps1 dist/pacote/
           cp dist/MARKYS-PDV.ico dist/pacote/
       - uses: actions/upload-artifact@v4
         with:

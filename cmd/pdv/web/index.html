@@ -602,8 +602,8 @@ document.addEventListener('keydown',event=>{
  const finishButton=document.querySelector('#finishSale');
  if(!saleView||saleView.hidden||!finishButton||finishButton.disabled||!cart.length)return;
  if(document.querySelector('dialog[open]'))return;
- const target=event.target;
- if(target instanceof HTMLElement&&(target.isContentEditable||target.closest('input,textarea,select,button,a,[role="button"],[contenteditable="true"]')))return;
+ // F8 deve funcionar mesmo com o cursor dentro dos campos do caixa,
+ // executando exatamente a ação do botão Finalizar venda.
  event.preventDefault();
  finishButton.click();
 });

@@ -1,22 +1,30 @@
 # MARKYS PDV — Ponto de venda e gestão comercial local
 
-O **MARKYS PDV** funciona com um computador principal como servidor. Os demais computadores acessam a mesma instalação e o mesmo banco de dados pelo navegador, por Wi-Fi ou cabo na mesma rede local.
+O **MARKYS PDV** é um sistema de ponto de venda e gestão comercial local, projetado para ter um computador principal executando o sistema e armazenando os dados.
+
+## Posicionamento comercial
+
+A oferta comercial do MARKYS PDV é destinada a **um computador principal por licença**. A comunicação comercial deve apresentar o produto para uso em um único computador do estabelecimento.
+
+A possibilidade técnica de abrir o sistema em outros computadores pela rede local **não significa que o uso em vários PCs seja o cenário recomendado, tenha desempenho garantido ou esteja incluído como benefício assegurado da oferta**. Não anuncie o produto como uma solução multiestação.
 
 ## Recursos
 
 - Frente de caixa, vendas, produtos, clientes, estoque e usuários.
 - Gerador de orçamentos.
-- Banco SQLite mantido no computador principal.
-- Acesso compartilhado por navegador na rede local.
+- Banco SQLite mantido localmente no computador principal.
+- Possibilidade técnica de acesso por navegador em outros dispositivos da mesma rede local, sujeita às limitações descritas neste documento.
 
-## Requisitos
+## Requisitos para o uso recomendado
 
-- Computador principal Windows 10/11 (ou compatível) para executar o servidor.
-- Computadores clientes com navegador atualizado.
-- Todos os computadores conectados à mesma rede local/roteador.
+- Um computador principal com Windows 10/11 (ou compatível) para executar o sistema.
 - Go 1.23 ou superior somente para executar a partir do código-fonte.
 
-## Configuração da rede local
+## Capacidade técnica opcional: acesso pela rede local
+
+O servidor pode aceitar conexões de outros computadores conectados à mesma rede, por Wi-Fi ou cabo. Esse recurso descreve uma capacidade técnica do programa, **não uma promessa de funcionamento estável ou de desempenho adequado em múltiplos computadores**.
+
+O resultado pode variar conforme o computador principal, a quantidade de dispositivos, a qualidade e configuração do roteador/rede, o tráfego simultâneo e as condições do ambiente. Antes de depender desse modo de uso, é necessário testá-lo no ambiente real. Para a utilização comercial recomendada, considere um único computador principal.
 
 ### 1. Computador principal
 
@@ -29,9 +37,11 @@ O **MARKYS PDV** funciona com um computador principal como servidor. Os demais c
 
 O inicializador registra o servidor na inicialização do Windows para os próximos logins do mesmo usuário. Assim, depois de ligar o PC principal e entrar no Windows, o Markys PDV inicia automaticamente.
 
-### 2. Outros computadores
+### 2. Acesso opcional por outro computador
 
-1. Conecte o computador à mesma rede Wi-Fi ou cabeada do servidor.
+Somente para testes ou uso por conta e risco do operador, um dispositivo na mesma rede pode tentar acessar:
+
+1. Conecte o dispositivo à mesma rede Wi-Fi ou cabeada do servidor.
 2. Abra Chrome, Edge ou outro navegador atualizado.
 3. Acesse **http://markyspdv.local:2222**.
 4. Entre com o usuário cadastrado no computador principal.
@@ -49,15 +59,15 @@ As regras do Firewall permitem TCP 2222 (PDV) e UDP 5353 (descoberta mDNS) somen
 
 ## Dados e backups
 
-O banco fica em `data/markys-pdv.db` na pasta do servidor. Os clientes não mantêm cópias independentes. Antes de atualizar, encerre o servidor e faça backup da pasta `data`. Proteja os backups, pois podem conter dados comerciais e pessoais.
+O banco fica em `data/markys-pdv.db` na pasta do servidor. Os dispositivos conectados pela rede não mantêm cópias independentes. Antes de atualizar, encerre o servidor e faça backup da pasta `data`. Proteja os backups, pois podem conter dados comerciais e pessoais.
 
 ## Limites e validação
 
 - O acesso por `markyspdv.local` depende de mDNS na rede e no dispositivo cliente. Algumas redes Wi-Fi corporativas podem bloquear multicast ou isolamento entre clientes; nesses casos, use o IPv4 do servidor ou ajuste a rede.
-- Teste o acesso simultâneo por cabo e Wi-Fi antes do uso real.
+- O acesso por outros computadores não tem garantia de desempenho, estabilidade ou compatibilidade para todos os ambientes. Testes locais não equivalem a uma garantia de operação multiestação.
 - O servidor usa HTTP sem criptografia; mantenha-o restrito a uma rede local confiável.
 - As sessões de login ficam em memória e são encerradas quando o servidor reinicia.
-- O computador principal deve permanecer ligado e conectado à rede para os clientes acessarem.
+- O computador principal deve permanecer ligado para executar o sistema e manter os dados disponíveis.
 - O sistema não emite NFC-e nem NF-e nesta versão.
 
 ## Desenvolvimento

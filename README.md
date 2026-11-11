@@ -5,7 +5,7 @@ O **MARKYS PDV** funciona com um computador principal como servidor. Os demais c
 ## Recursos
 
 - Frente de caixa, vendas, produtos, clientes, estoque e usuários.
-- Gerador de orçamentos em desenvolvimento.
+- Gerador de orçamentos.
 - Banco SQLite mantido no computador principal.
 - Acesso compartilhado por navegador na rede local.
 
@@ -20,7 +20,7 @@ O **MARKYS PDV** funciona com um computador principal como servidor. Os demais c
 
 ### 1. Computador principal
 
-1. Extraia todos os arquivos do pacote para uma pasta permanente, por exemplo `C:\MARKYS-PDV`.
+1. Extraia todos os arquivos do pacote para uma pasta permanente, por exemplo `C:\\MARKYS-PDV`.
 2. Conecte o computador ao roteador por cabo ou Wi-Fi.
 3. Execute `INICIAR-MARKYS-PDV.bat`.
 4. Na primeira execução, o Windows solicitará autorização de administrador para criar regras de Firewall para TCP 2222 e UDP 5353. Autorize somente se estiver em uma rede privada e confiável.

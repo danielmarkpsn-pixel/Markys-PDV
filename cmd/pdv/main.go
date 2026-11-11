@@ -93,7 +93,8 @@ func main() {
 	mux.HandleFunc("/api/admin/companies/bootstrap", a.companyBootstrap)
 	mux.HandleFunc("/api/admin/equipment", a.equipment)
 	mux.Handle("/", http.FileServer(http.FS(webRoot)))
-	srv := &http.Server{Addr: env("PDV_ADDR", "0.0.0.0:8080"), Handler: headers(a.rootHandler(mux)), ReadHeaderTimeout: 5*time.Second}
+	srv := &http.Server{Addr: env("PDV_ADDR", "0.0.0.0:2222"), Handler: headers(a.rootHandler(mux)), ReadHeaderTimeout: 5*time.Second}
+	startLocalDiscovery(2222)
 	log.Printf("MARKYS PDV listening on %s", srv.Addr)
 	openBrowserWhenReady()
 	log.Fatal(srv.ListenAndServe())
@@ -427,7 +428,7 @@ func openBrowserWhenReady() {
 		return
 	}
 	go func() {
-		const url = "http://localhost:8080"
+		const url = "http://localhost:2222"
 		client := &http.Client{Timeout: 500 * time.Millisecond}
 		for attempt := 0; attempt < 40; attempt++ {
 			resp, err := client.Get(url + "/api/health")

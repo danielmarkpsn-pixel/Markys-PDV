@@ -11,16 +11,26 @@ if not exist "MARKYS-PDV-windows-amd64.exe" (
 
 if not exist "data" mkdir "data"
 set "PDV_DB=%~dp0data\markys-pdv.db"
-set "PDV_ADDR=0.0.0.0:8080"
+set "PDV_ADDR=0.0.0.0:2222"
 
 echo.
 echo ============================================
 echo          MARKYS PDV - SERVIDOR
 echo ============================================
 echo.
-echo O navegador sera aberto automaticamente em http://localhost:8080
-echo Dados locais: "%PDV_DB%"
-echo Nos outros computadores, use o IP deste PC seguido de :8080.
+echo Configurando o acesso seguro na rede local...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CONFIGURAR-SERVIDOR-LAN.ps1"
+if errorlevel 1 (
+  echo Nao foi possivel concluir a configuracao do Firewall.
+  echo O acesso por outros computadores pode nao funcionar.
+)
+
+REM Registra o servidor para iniciar automaticamente no proximo login do Windows.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0REGISTRAR-INICIALIZACAO.ps1"
+
+echo.
+echo Servidor local: http://localhost:2222
+echo Acesso dos clientes: http://markyspdv.local:2222
 echo.
 echo Mantenha esta janela aberta enquanto usar o PDV.
 echo Para encerrar, pressione Ctrl+C nesta janela.

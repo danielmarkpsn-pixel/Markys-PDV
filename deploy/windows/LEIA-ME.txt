@@ -1,46 +1,56 @@
-MARKYS PDV - PACOTE PARA WINDOWS 11
-====================================
+MARKYS PDV - PACOTE PARA WINDOWS
+=================================
 
-CONTEUDO
-- MARKYS-PDV-windows-amd64.exe: servidor do sistema, com ícone MARKYS e abertura automática do navegador.
-- INICIAR-MARKYS-PDV.bat: inicia o servidor com o banco na pasta do pacote.
-- MARKYS-PDV.ico: ícone da aplicação gerado a partir de cmd\pdv\web\logo.png.
-- data\markys-pdv.db: banco de dados criado automaticamente na primeira execucao.
+ARQUIVOS
+- MARKYS-PDV-windows-amd64.exe: servidor do sistema.
+- INICIAR-MARKYS-PDV.bat: inicia o servidor, configura o acesso local e registra a inicializacao automatica no Windows.
+- CONFIGURAR-SERVIDOR-LAN.ps1: cria regras de Firewall TCP 2222 e UDP 5353, restritas à rede Privada local.
+- REGISTRAR-INICIALIZACAO.ps1: registra a inicializacao automatica do servidor no login do Windows.
+- MARKYS-PDV.ico: icone do aplicativo.
+- data\markys-pdv.db: banco criado automaticamente na primeira execucao.
 
-INSTALACAO INICIAL
+COMPUTADOR PRINCIPAL
 1. Crie uma pasta permanente, por exemplo C:\MARKYS-PDV.
 2. Extraia TODOS os arquivos do ZIP para essa pasta.
-3. Para iniciar, dê duplo clique em MARKYS-PDV-windows-amd64.exe ou em INICIAR-MARKYS-PDV.bat.
-4. O servidor será iniciado e o navegador padrão tentará abrir http://localhost:8080 automaticamente.
-5. Na primeira execução, crie o primeiro administrador com uma senha forte e exclusiva.
-6. Mantenha a janela do servidor aberta enquanto o PDV estiver em uso.
+3. Conecte o computador ao roteador por cabo ou Wi-Fi.
+4. Execute INICIAR-MARKYS-PDV.bat.
+5. Na primeira execucao, autorize a solicitacao do Firewall do Windows para liberar TCP 2222 e UDP 5353 na rede local. As regras ficam limitadas ao perfil Privado e à sub-rede local.
+6. Na primeira execucao, crie a conta de administrador.
+7. Mantenha a janela do servidor aberta enquanto utilizar o PDV.
 
-ACESSO POR OUTROS COMPUTADORES
-1. Configure o computador servidor para usar um IP local fixo ou uma reserva DHCP.
-2. No servidor, permita a porta TCP 8080 somente no perfil de rede Privada do Windows Firewall.
-   O comando abaixo pode ser executado no PowerShell como Administrador, depois de confirmar
-   que a rede do Windows está marcada como Privada:
-   New-NetFirewallRule -DisplayName "MARKYS PDV LAN 8080" -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow -Profile Private
-3. Nos demais computadores da mesma rede, abra http://IP-DO-SERVIDOR:8080.
-4. Não encaminhe a porta 8080 para a internet nem exponha o sistema publicamente.
+O inicializador cria um atalho na pasta Inicializar do Windows. Nos proximos logins desse mesmo usuario, o servidor sera iniciado automaticamente. O computador principal precisa estar ligado e conectado à rede.
+
+OUTROS COMPUTADORES (CLIENTES)
+1. Conecte cada computador à mesma rede Wi-Fi ou cabeada do servidor.
+2. Abra Chrome, Edge ou outro navegador atualizado.
+3. Acesse http://markyspdv.local:2222.
+4. Entre com o usuario cadastrado no servidor.
+
+Os clientes NAO precisam instalar o Markys PDV, executar scripts ou alterar o arquivo hosts. O nome markyspdv.local e anunciado automaticamente pelo servidor via mDNS.
+
+Se markyspdv.local nao resolver em uma rede especifica, use o endereco IPv4 exibido pelo Windows no computador principal, seguido de :2222. Exemplo: http://192.168.0.10:2222. O mDNS pode ser bloqueado por isolamento de clientes Wi-Fi, roteadores ou politicas corporativas.
+
+REDE E SEGURANCA
+- Todos os computadores devem estar na mesma rede local.
+- O servidor escuta em 0.0.0.0:2222.
+- O Firewall libera TCP 2222 (PDV) e UDP 5353 (mDNS) somente no perfil Privado e para a sub-rede local.
+- Se a rede do Windows estiver como Publica, altere para Privada somente se for uma rede confiavel.
+- Nao encaminhe a porta 2222 para a internet nem exponha o sistema publicamente.
+- O acesso HTTP nao usa criptografia; utilize somente em rede local confiavel.
 
 DADOS E ATUALIZACOES
-- O banco principal fica em data\markys-pdv.db dentro desta pasta quando iniciado pelo BAT.
-- Mantenha toda a pasta data em local persistente. Não execute o sistema a partir de uma pasta
-  temporária nem apague data ao atualizar.
+- O banco principal fica em data\markys-pdv.db dentro da pasta do servidor.
+- Mantenha a pasta data em local permanente. Nao a apague ao atualizar.
 - Antes de atualizar, encerre o servidor e copie a pasta data para um local seguro.
-- Teste periodicamente a recuperação do backup. O sistema disponibiliza download de backup,
-  mas a restauração pela interface não está implementada nesta versão.
-- As sessões de login ficam em memória e serão encerradas quando o servidor reiniciar.
+- Teste periodicamente a recuperacao do backup.
+- As sessoes de login ficam em memoria e serao encerradas quando o servidor reiniciar.
 
-VALIDACAO ANTES DE USO REAL
-- Faça uma venda de teste e confira pagamento, estoque e fechamento de caixa.
-- Teste as permissões de cada perfil de usuário.
-- Teste o acesso a partir de outro computador.
-- Valide leitor de código de barras e impressora que a loja utiliza.
-- O sistema não emite NF-e nem NFC-e nesta versão.
+VALIDACAO ANTES DO USO REAL
+- Teste acesso simultaneo por Wi-Fi e cabo.
+- Faca vendas de teste e confira pagamentos, estoque e fechamento de caixa.
+- Teste as permissoes de cada perfil de usuario.
+- Valide leitor de codigo de barras e impressora utilizados pela loja.
+- O sistema nao emite NF-e nem NFC-e nesta versao.
 
 IMPORTANTE
-Este pacote facilita a inicialização, mas não é um instalador MSI e não instala um serviço
-automático do Windows. Para manter o sistema funcionando, a janela do servidor deve permanecer
-aberta. O uso em produção depende dos testes operacionais, de segurança e de recuperação.
+O pacote ainda nao e um instalador MSI nem um servico Windows. A inicializacao automatica e feita pelo atalho na pasta Inicializar do usuario. Para os clientes acessarem, o usuario do Windows no computador principal precisa estar conectado e o servidor em execucao.

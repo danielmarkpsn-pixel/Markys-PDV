@@ -248,7 +248,7 @@ func (a *App) authMiddleware(next http.Handler) http.Handler {
 		switch u.Role {
 		case "admin","manager": next.ServeHTTP(w,r)
 		case "cashier":
-			if p=="/api/cash"&&(r.Method==http.MethodGet||r.Method==http.MethodPost)||p=="/api/sales"&&r.Method==http.MethodPost||p=="/api/products"&&r.Method==http.MethodGet||p=="/api/categories"&&r.Method==http.MethodGet||p=="/api/suppliers"&&r.Method==http.MethodGet||p=="/api/customers"&&r.Method==http.MethodGet {next.ServeHTTP(w,r);return};http.Error(w,"Seu perfil não permite esta operação",403)
+			if p=="/api/cash"&&(r.Method==http.MethodGet||r.Method==http.MethodPost)||p=="/api/sales"&&r.Method==http.MethodPost||p=="/api/products"&&r.Method==http.MethodGet||p=="/api/categories"&&r.Method==http.MethodGet||p=="/api/suppliers"&&r.Method==http.MethodGet||p=="/api/customers"&&r.Method==http.MethodGet||p=="/api/quotes" {next.ServeHTTP(w,r);return};http.Error(w,"Seu perfil não permite esta operação",403)
 		case "stockkeeper":
 			if p=="/api/products"||p=="/api/categories"||p=="/api/suppliers"||p=="/api/stock-movements"||p=="/api/reports/stock.csv"||p=="/api/reports/movements.csv" {next.ServeHTTP(w,r);return};http.Error(w,"Seu perfil não permite esta operação",403)
 		default:http.Error(w,"Perfil sem permissões",403)

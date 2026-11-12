@@ -33,9 +33,9 @@ Na primeira inicialização, o sistema grava somente hashes PBKDF2-SHA256 da sen
 
 ## Proteções
 
-- Existe uma única identidade Master, com identificador fixo.
+No modo compartilhado, existe uma única identidade Master, com identificador fixo.
 - O Master não pode ser criado, removido, bloqueado ou rebaixado pela administração comum.
-- Somente o Master cadastra e inativa empresas e pode criar contas de Administrador adicionais em cada empresa.
+- No modo compartilhado, somente o Master cadastra e inativa empresas e pode criar contas de Administrador adicionais em cada empresa.
 - Administradores comuns gerenciam usuários de sua própria empresa e podem criar, bloquear ou reativar apenas perfis inferiores (Gerente, Operador, Estoquista legado e Consulta). Não podem criar ou administrar outra conta de Administrador ou Master.
 - Somente o Master pode remover o acesso de usuários. Para preservar vendas, caixas e auditoria, a remoção desativa a conta e altera o identificador de login; os vínculos históricos permanecem no banco.
 - A recuperação exige o código secreto, aceita somente chamadas locais, limita tentativas a cinco e aplica bloqueio de 30 minutos.

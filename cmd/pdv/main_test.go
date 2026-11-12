@@ -15,24 +15,24 @@ import (
 
 func TestInitialAdminSetupAndLogin(t *testing.T) {
  app:=newCancellationTestApp(t)
+ t.Setenv("MARKYS_MASTER_USERNAME","owner")
+ t.Setenv("MARKYS_MASTER_NAME","Proprietário")
+ t.Setenv("MARKYS_MASTER_PASSWORD","senha-inicial-forte-123")
+ t.Setenv("MARKYS_MASTER_RECOVERY_CODE","codigo-inicial-secreto-123456789")
+ if err:=initMasterAccount(app.db);err!=nil{t.Fatal(err)}
  setup:=httptest.NewRecorder()
- app.authSetup(setup,httptest.NewRequest(http.MethodPost,"/api/auth/setup",strings.NewReader(`{"username":"admin","display_name":"Administrador","password":"senha-forte-123"}`)))
- if setup.Code!=http.StatusCreated {t.Fatalf("setup status %d: %s",setup.Code,setup.Body.String())}
- if setup.Header().Get("Set-Cookie")=="" {t.Fatal("setup should create a session cookie")}
+ app.authSetup(setup,httptest.NewRequest(http.MethodPost,"/api/auth/setup",strings.NewReader(`{"company_id":0,"username":"admin","display_name":"Administrador","password":"senha-forte-123"}`)))
+ if setup.Code!=http.StatusForbidden {t.Fatalf("public setup must not create Master, got %d: %s",setup.Code,setup.Body.String())}
  var stored string
- if err:=app.db.QueryRow("SELECT password_hash FROM users WHERE username='admin'").Scan(&stored);err!=nil{t.Fatal(err)}
- if stored=="senha-forte-123"||!strings.HasPrefix(stored,"pbkdf2-sha256$"){t.Fatal("password must be stored as a salted PBKDF2 hash")}
- again:=httptest.NewRecorder()
- app.authSetup(again,httptest.NewRequest(http.MethodPost,"/api/auth/setup",strings.NewReader(`{"username":"other","display_name":"Other","password":"senha-forte-123"}`)))
- if again.Code!=http.StatusConflict {t.Fatalf("second setup should be blocked, got %d",again.Code)}
+ if err:=app.db.QueryRow("SELECT password_hash FROM master_accounts WHERE id=1").Scan(&stored);err!=nil{t.Fatal(err)}
+ if stored=="senha-inicial-forte-123"||!strings.HasPrefix(stored,"pbkdf2-sha256$"){t.Fatal("Master password must be stored as a salted PBKDF2 hash")}
  login:=httptest.NewRecorder()
- app.authLogin(login,httptest.NewRequest(http.MethodPost,"/api/auth/login",strings.NewReader(`{"username":"admin","password":"senha-forte-123"}`)))
- if login.Code!=http.StatusOK {t.Fatalf("login status %d: %s",login.Code,login.Body.String())}
+ app.authLogin(login,httptest.NewRequest(http.MethodPost,"/api/auth/login",strings.NewReader(`{"company_id":0,"username":"owner","password":"senha-inicial-forte-123"}`)))
+ if login.Code!=http.StatusOK||!strings.Contains(login.Body.String(),`"role":"master"`){t.Fatalf("Master login status %d: %s",login.Code,login.Body.String())}
  bad:=httptest.NewRecorder()
- app.authLogin(bad,httptest.NewRequest(http.MethodPost,"/api/auth/login",strings.NewReader(`{"username":"admin","password":"wrong-password"}`)))
- if bad.Code!=http.StatusUnauthorized {t.Fatalf("wrong password status %d",bad.Code)}
+ app.authLogin(bad,httptest.NewRequest(http.MethodPost,"/api/auth/login",strings.NewReader(`{"company_id":0,"username":"owner","password":"wrong-password"}`)))
+ if bad.Code!=http.StatusUnauthorized {t.Fatalf("wrong Master password status %d",bad.Code)}
 }
-
 func TestAuthMiddlewareProtectsAPIAndChecksRoles(t *testing.T) {
  app:=newCancellationTestApp(t)
  mux:=http.NewServeMux()

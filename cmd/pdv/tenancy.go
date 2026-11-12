@@ -125,7 +125,7 @@ func (a *App) companyBranding(w http.ResponseWriter, r *http.Request) {
 
 func isMasterRoute(path string) bool {
 	switch path {
-	case "/api/health","/api/auth/companies","/api/auth/status","/api/auth/setup","/api/auth/login","/api/auth/recover-admin","/api/auth/logout","/api/admin/companies","/api/admin/companies/status","/api/admin/companies/branding","/api/admin/companies/bootstrap":
+	case "/api/health","/api/auth/companies","/api/auth/status","/api/auth/setup","/api/auth/login","/api/auth/recover-admin","/api/auth/logout","/api/admin/companies","/api/admin/companies/status","/api/admin/companies/branding","/api/master/users", "/api/admin/companies/bootstrap":
 		return true
 	default:
 		return false

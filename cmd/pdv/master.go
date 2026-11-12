@@ -42,9 +42,9 @@ func initMasterAccount(db *sql.DB) error {
 	if len(username) < 3 || len(username) > 64 || len(password) < 10 || len(password) > 256 || len(recoveryCode) < 16 || len(recoveryCode) > 256 {
 		return errors.New("Configuração Master incompleta: defina MARKYS_MASTER_USERNAME, MARKYS_MASTER_PASSWORD (10+ caracteres) e MARKYS_MASTER_RECOVERY_CODE (16+ caracteres)")
 	}
-	passwordHash, err := passwordHash(password); if err != nil { return err }
-	recoveryHash, err := passwordHash(recoveryCode); if err != nil { return err }
-	_, err = db.Exec("INSERT INTO master_accounts(id,username,display_name,password_hash,recovery_hash) VALUES(1,?,?,?,?)", username, displayName, passwordHash, recoveryHash)
+	passwordEncoded, err := passwordHash(password); if err != nil { return err }
+	recoveryEncoded, err := passwordHash(recoveryCode); if err != nil { return err }
+	_, err = db.Exec("INSERT INTO master_accounts(id,username,display_name,password_hash,recovery_hash) VALUES(1,?,?,?,?)", username, displayName, passwordEncoded, recoveryEncoded)
 	return err
 }
 
@@ -136,23 +136,40 @@ func (a *App) authRecoverMaster(w http.ResponseWriter, r *http.Request) {
 // masterDeleteUser is deliberately separate from tenant user-management APIs.
 // Only the permanent Master identity can remove a user from a selected company.
 func (a *App) masterDeleteUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete { w.Header().Set("Allow", "DELETE"); http.Error(w, "Método não permitido", 405); return }
 	u := a.currentUser(r)
-	if u == nil || u.Role != "master" { http.Error(w, "Somente o Master pode excluir usuários.", 403); return }
+	if u == nil || u.Role != "master" { http.Error(w, "Somente o Master pode gerenciar usuários de empresas.", 403); return }
 	companyID, err := parseCompanyID(r.URL.Query().Get("company_id"))
 	if err != nil { http.Error(w, err.Error(), 400); return }
-	userID, err := strconv.ParseInt(r.URL.Query().Get("user_id"), 10, 64)
-	if err != nil || userID <= 0 { http.Error(w, "ID de usuário inválido.", 400); return }
 	tenant, err := a.appForCompany(companyID)
 	if err != nil { http.Error(w, err.Error(), 404); return }
-	var username, role string
-	if err := tenant.db.QueryRow("SELECT username,role FROM users WHERE id=?", userID).Scan(&username,&role); err != nil {
-		if err == sql.ErrNoRows { http.Error(w, "Usuário não encontrado.", 404) } else { http.Error(w, "Não foi possível consultar o usuário.", 500) }
-		return
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := tenant.db.Query("SELECT id,username,display_name,role,active,created_at FROM users ORDER BY id")
+		if err != nil { http.Error(w, "Não foi possível consultar usuários.", 500); return }
+		defer rows.Close()
+		out := []authUser{}
+		for rows.Next() {
+			var item authUser; var active int
+			if err := rows.Scan(&item.ID,&item.Username,&item.DisplayName,&item.Role,&active,&item.CreatedAt); err != nil { http.Error(w, "Erro ao ler usuários.", 500); return }
+			item.Active=active==1; item.CompanyID=companyID; out=append(out,item)
+		}
+		if err := rows.Err(); err != nil { http.Error(w, "Erro ao ler usuários.", 500); return }
+		jsonOut(w,200,out)
+	case http.MethodDelete:
+		userID, err := strconv.ParseInt(r.URL.Query().Get("user_id"), 10, 64)
+		if err != nil || userID <= 0 { http.Error(w, "ID de usuário inválido.", 400); return }
+		var username, role string
+		if err := tenant.db.QueryRow("SELECT username,role FROM users WHERE id=?", userID).Scan(&username,&role); err != nil {
+			if err == sql.ErrNoRows { http.Error(w, "Usuário não encontrado.", 404) } else { http.Error(w, "Não foi possível consultar o usuário.", 500) }
+			return
+		}
+		if _, err := tenant.db.Exec("DELETE FROM users WHERE id=?", userID); err != nil {
+			http.Error(w, "Não foi possível excluir o usuário. Verifique se há registros vinculados; se houver, desative o acesso em vez de apagar o histórico.", 409); return
+		}
+		tenant.writeAudit(0, "user_deleted_by_master", "user", strconv.FormatInt(userID,10), "Usuário "+username+" ("+role+") excluído pelo Master")
+		jsonOut(w, 200, map[string]any{"ok":true,"company_id":companyID,"user_id":userID})
+	default:
+		w.Header().Set("Allow", "GET, DELETE")
+		http.Error(w, "Método não permitido", 405)
 	}
-	if _, err := tenant.db.Exec("DELETE FROM users WHERE id=?", userID); err != nil {
-		http.Error(w, "Não foi possível excluir o usuário. Verifique se há registros vinculados; se houver, desative o acesso em vez de apagar o histórico.", 409); return
-	}
-	tenant.writeAudit(0, "user_deleted_by_master", "user", strconv.FormatInt(userID,10), "Usuário "+username+" ("+role+") excluído pelo Master")
-	jsonOut(w, 200, map[string]any{"ok":true,"company_id":companyID,"user_id":userID})
 }

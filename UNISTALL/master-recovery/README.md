@@ -1,5 +1,7 @@
 # Recuperação do Master
 
+Este procedimento é exclusivo do modo compartilhado (`MARKYS_MODE=shared`). No modo individual, a recuperação do Administrador local segue o fluxo de instalação individual.
+
 A recuperação é realizada pela tela local de acesso do MARKYS PDV. Ela não cria uma conta Master nova e não recupera contas comuns de Administrador.
 
 1. Abra o MARKYS PDV no próprio computador servidor.

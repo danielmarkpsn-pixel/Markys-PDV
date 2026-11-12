@@ -113,10 +113,9 @@ func (a *App) companyBootstrap(w http.ResponseWriter,r *http.Request) {
  q.DisplayName=strings.TrimSpace(q.DisplayName);q.Username=strings.TrimSpace(q.Username)
  if q.DisplayName==""||len(q.DisplayName)>120||len(q.Username)<3||len(q.Username)>64{http.Error(w,"Informe nome e usuário válidos",400);return}
  app,err:=a.appForCompany(id);if err!=nil{http.Error(w,err.Error(),400);return}
- var count int;if err:=app.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count);err!=nil{http.Error(w,"Não foi possível verificar usuários da empresa",500);return};if count>0{http.Error(w,"Esta empresa já possui usuários; use a gestão de usuários dela",409);return}
- hash,err:=passwordHash(q.Password);if err!=nil{http.Error(w,err.Error(),400);return}
+  hash,err:=passwordHash(q.Password);if err!=nil{http.Error(w,err.Error(),400);return}
  res,err:=app.db.Exec("INSERT INTO users(username,password_hash,display_name,role,active) VALUES(?,?,?,'admin',1)",q.Username,hash,q.DisplayName);if err!=nil{http.Error(w,"Não foi possível criar administrador; usuário pode já existir",409);return}
- userID,_:=res.LastInsertId();a.writeAudit(requestUserID(a,r),"company_admin_bootstrapped","company",strconv.FormatInt(id,10),"Administrador inicial criado para empresa")
+ userID,_:=res.LastInsertId();a.writeAudit(requestUserID(a,r),"company_admin_created","company",strconv.FormatInt(id,10),"Conta de Administrador criada para empresa")
  jsonOut(w,201,map[string]any{"ok":true,"company_id":id,"username":q.Username,"user_id":userID})
 }
 

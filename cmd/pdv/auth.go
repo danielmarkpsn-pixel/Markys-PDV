@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-type sessionInfo struct { userID int64; companyID int64; expires time.Time }
+type sessionInfo struct { userID int64; companyID int64; expires time.Time; isMaster bool }
 var sessionStore = struct { sync.Mutex; items map[string]sessionInfo }{items: map[string]sessionInfo{}}
 
 type authUser struct {
@@ -59,18 +59,21 @@ func verifyPassword(password,encoded string) bool {
 }
 func (a *App) authStatus(w http.ResponseWriter,r *http.Request) {
 	if r.Method!=http.MethodGet {http.Error(w,"Method not allowed",405);return}
-	rawCompanyID:=r.URL.Query().Get("company_id");id,err:=parseCompanyID(rawCompanyID);if err!=nil{http.Error(w,err.Error(),400);return};if rawCompanyID==""{if cookie,e:=r.Cookie("markys_session");e==nil{sessionStore.Lock();session,ok:=sessionStore.items[cookie.Value];sessionStore.Unlock();if ok{id=session.companyID}}}
+	rawCompanyID:=r.URL.Query().Get("company_id");id,err:=parseCompanyID(rawCompanyID);if err!=nil{http.Error(w,err.Error(),400);return}
+	if rawCompanyID=="" { if cookie,e:=r.Cookie("markys_session");e==nil { sessionStore.Lock();session,ok:=sessionStore.items[cookie.Value];sessionStore.Unlock();if ok{id=session.companyID} } }
 	app,err:=a.appForCompany(id);if err!=nil{http.Error(w,err.Error(),403);return}
 	var count int
 	if err:=app.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count);err!=nil{http.Error(w,"Database error",500);return}
 	current:=app.currentUser(r)
-	jsonOut(w,200,map[string]any{"setup_required":count==0,"authenticated":current!=nil,"user":current,"company_id":id})
+	setupRequired:=count==0
+	if id==0 && a.masterConfigured() { setupRequired=false }
+	jsonOut(w,200,map[string]any{"setup_required":setupRequired,"authenticated":current!=nil,"user":current,"company_id":id,"master_configured":a.masterConfigured()})
 }
 func (a *App) authSetup(w http.ResponseWriter,r *http.Request) {
 	if r.Method!=http.MethodPost {http.Error(w,"Method not allowed",405);return}
 	var req struct{CompanyID int64 `json:"company_id"`;Username string `json:"username"`;DisplayName string `json:"display_name"`;Password string `json:"password"`}
 	if !decodeJSON(w,r,&req){return}
-	if req.CompanyID>0{masterUser:=a.currentUser(r);if masterUser==nil||masterUser.Role!="admin"{http.Error(w,"Somente o administrador geral pode configurar o primeiro acesso desta empresa",403);return}}
+	if req.CompanyID==0 { http.Error(w,"A conta Master é pré-configurada pelo proprietário e não pode ser criada pela tela pública.",403); return }; masterUser:=a.currentUser(r);if masterUser==nil||masterUser.Role!="master"{http.Error(w,"Somente o Master pode configurar o primeiro acesso desta empresa",403);return }
 	app,err:=a.appForCompany(req.CompanyID);if err!=nil{http.Error(w,err.Error(),403);return}
 	var count int;if err:=app.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count);err!=nil{http.Error(w,"Database error",500);return};if count!=0{http.Error(w,"A configuração inicial desta empresa já foi concluída",409);return}
 	req.Username=strings.TrimSpace(req.Username);req.DisplayName=strings.TrimSpace(req.DisplayName)
@@ -83,52 +86,27 @@ func (a *App) authSetup(w http.ResponseWriter,r *http.Request) {
 	jsonOut(w,201,map[string]any{"ok":true,"user":authUser{ID:id,Username:req.Username,DisplayName:req.DisplayName,Role:"admin",Active:true,CompanyID:req.CompanyID,GlobalAdmin:req.CompanyID==0}})
 }
 // authRecoverAdmin is an offline recovery path restricted to requests made on this computer.
-func (a *App) authRecoverAdmin(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { w.Header().Set("Allow", "POST"); http.Error(w, "Método não permitido", 405); return }
-	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
-	if err != nil { host = strings.Trim(strings.TrimSpace(r.RemoteAddr), "[]") }
-	ip := net.ParseIP(host)
-	if ip == nil || !ip.IsLoopback() { http.Error(w, "A recuperação administrativa só pode ser feita neste computador.", http.StatusForbidden); return }
-	var req struct {
-		CompanyID int64 `json:"company_id"`
-		Username string `json:"username"`
-		DisplayName string `json:"display_name"`
-		Password string `json:"password"`
-	}
-	if !decodeJSON(w, r, &req) { return }
-	req.Username = strings.TrimSpace(req.Username)
-	req.DisplayName = strings.TrimSpace(req.DisplayName)
-	if len(req.Username) < 3 || len(req.Username) > 64 { http.Error(w, "Informe o usuário administrador (3 a 64 caracteres).", 400); return }
-	app, err := a.appForCompany(req.CompanyID)
-	if err != nil { http.Error(w, err.Error(), 403); return }
-	hash, err := passwordHash(req.Password)
-	if err != nil { http.Error(w, err.Error(), 400); return }
-	var id int64
-	err = app.db.QueryRow("SELECT id FROM users WHERE username=? COLLATE NOCASE AND role='admin'", req.Username).Scan(&id)
-	if err == nil {
-		if _, err = app.db.Exec("UPDATE users SET password_hash=?,active=1 WHERE id=? AND role='admin'", hash, id); err != nil { http.Error(w, "Não foi possível redefinir a senha do administrador.", 500); return }
-	} else if err == sql.ErrNoRows {
-		var admins int
-		if e := app.db.QueryRow("SELECT COUNT(*) FROM users WHERE role='admin'").Scan(&admins); e != nil { http.Error(w, "Não foi possível verificar os administradores.", 500); return }
-		if admins > 0 { http.Error(w, "Já existe administrador. Informe o nome de usuário correto; nenhum usuário foi alterado.", 409); return }
-		if req.DisplayName == "" || len(req.DisplayName) > 120 { http.Error(w, "Informe o nome completo para criar o primeiro administrador.", 400); return }
-		res, e := app.db.Exec("INSERT INTO users(username,password_hash,display_name,role,active) VALUES(?,?,?,'admin',1)", req.Username, hash, req.DisplayName)
-		if e != nil { http.Error(w, "Não foi possível criar o administrador; confira se o usuário já existe.", 409); return }
-		id, err = res.LastInsertId()
-		if err != nil { http.Error(w, "Não foi possível confirmar a criação do administrador.", 500); return }
-	} else { http.Error(w, "Não foi possível localizar a conta administrativa.", 500); return }
-	app.writeAudit(id, "admin_password_recovered", "user", strconv.FormatInt(id, 10), "Acesso administrativo recuperado localmente")
-	app.createSession(w, id, req.CompanyID)
-	jsonOut(w, 200, map[string]any{"ok": true, "message": "Acesso administrativo recuperado."})
-}
+func (a *App) authRecoverAdmin(w http.ResponseWriter, r *http.Request) { a.authRecoverMaster(w,r) }
 
 func (a *App) authLogin(w http.ResponseWriter,r *http.Request) {
 	if r.Method!=http.MethodPost {http.Error(w,"Method not allowed",405);return}
 	var req struct{CompanyID int64 `json:"company_id"`;Username string `json:"username"`;Password string `json:"password"`}
 	if !decodeJSON(w,r,&req){return}
+	req.Username=strings.TrimSpace(req.Username)
+	if req.CompanyID==0 && a.masterConfigured() {
+		var id int64;var username,displayName,hash string;var active int
+		err:=a.db.QueryRow("SELECT id,username,display_name,password_hash,active FROM master_accounts WHERE id=1").Scan(&id,&username,&displayName,&hash,&active)
+		if err==nil && active==1 && strings.EqualFold(username,req.Username) && verifyPassword(req.Password,hash) {
+			u:=authUser{ID:id,Username:username,DisplayName:displayName,Role:"master",Active:true,CompanyID:0,GlobalAdmin:true}
+			a.createMasterSession(w,id)
+			a.writeAudit(0,"master_login","master_account","1","Login Master realizado")
+			jsonOut(w,200,map[string]any{"ok":true,"user":u});return
+		}
+		if err!=nil {http.Error(w,"Não foi possível validar a conta Master.",500);return}
+	}
 	app,err:=a.appForCompany(req.CompanyID);if err!=nil{http.Error(w,err.Error(),403);return}
 	var u authUser;var hash string;var active int
-	err=app.db.QueryRow("SELECT id,username,display_name,role,active,created_at,password_hash FROM users WHERE username=? COLLATE NOCASE",strings.TrimSpace(req.Username)).Scan(&u.ID,&u.Username,&u.DisplayName,&u.Role,&active,&u.CreatedAt,&hash)
+	err=app.db.QueryRow("SELECT id,username,display_name,role,active,created_at,password_hash FROM users WHERE username=? COLLATE NOCASE",req.Username).Scan(&u.ID,&u.Username,&u.DisplayName,&u.Role,&active,&u.CreatedAt,&hash)
 	if err!=nil||active!=1||!verifyPassword(req.Password,hash){http.Error(w,"Usuário ou senha inválidos, ou usuário inativo",401);return}
 	u.Active=true;u.CompanyID=req.CompanyID;u.GlobalAdmin=(u.Role=="admin"&&req.CompanyID==0);app.createSession(w,u.ID,req.CompanyID);app.writeAudit(u.ID,"login","user",strconv.FormatInt(u.ID,10),"Login realizado")
 	jsonOut(w,200,map[string]any{"ok":true,"user":u})
@@ -154,9 +132,21 @@ func (a *App) createSession(w http.ResponseWriter,userID int64,companyID int64) 
 	sessionStore.Lock();sessionStore.items[token]=sessionInfo{userID:userID,companyID:companyID,expires:expires};sessionStore.Unlock()
 	http.SetCookie(w,&http.Cookie{Name:"markys_session",Value:token,Path:"/",HttpOnly:true,SameSite:http.SameSiteStrictMode,Expires:expires,MaxAge:43200})
 }
+func (a *App) createMasterSession(w http.ResponseWriter,userID int64) {
+	raw:=make([]byte,32);if _,err:=rand.Read(raw);err!=nil{return};token:=base64.RawURLEncoding.EncodeToString(raw);expires:=time.Now().Add(12*time.Hour)
+	sessionStore.Lock();sessionStore.items[token]=sessionInfo{userID:userID,companyID:0,expires:expires,isMaster:true};sessionStore.Unlock()
+	http.SetCookie(w,&http.Cookie{Name:"markys_session",Value:token,Path:"/",HttpOnly:true,SameSite:http.SameSiteStrictMode,Expires:expires,MaxAge:43200})
+}
 func (a *App) currentUser(r *http.Request) *authUser {
 	c,err:=r.Cookie("markys_session");if err!=nil{return nil}
-	sessionStore.Lock();s,ok:=sessionStore.items[c.Value];if ok&&time.Now().After(s.expires){delete(sessionStore.items,c.Value);ok=false};sessionStore.Unlock();if !ok||s.companyID!=a.companyID{return nil}
+	sessionStore.Lock();s,ok:=sessionStore.items[c.Value];if ok&&time.Now().After(s.expires){delete(sessionStore.items,c.Value);ok=false};sessionStore.Unlock()
+	if !ok||s.companyID!=a.companyID{return nil}
+	if s.isMaster {
+		if a.companyID!=0 { return nil }
+		var u authUser;var active int
+		if err:=a.db.QueryRow("SELECT id,username,display_name,active,created_at FROM master_accounts WHERE id=1").Scan(&u.ID,&u.Username,&u.DisplayName,&active,&u.CreatedAt);err!=nil||active!=1||u.ID!=s.userID{return nil}
+		u.Role="master";u.Active=true;u.CompanyID=0;u.GlobalAdmin=true;return &u
+	}
 	var u authUser;var active int
 	if err:=a.db.QueryRow("SELECT id,username,display_name,role,active,created_at FROM users WHERE id=?",s.userID).Scan(&u.ID,&u.Username,&u.DisplayName,&u.Role,&active,&u.CreatedAt);err!=nil||active!=1{return nil}
 	u.Active=true;u.CompanyID=s.companyID;u.GlobalAdmin=(u.Role=="admin"&&s.companyID==0);return &u
@@ -171,7 +161,7 @@ func (a *App) users(w http.ResponseWriter,r *http.Request) {
 		var req struct{Username string `json:"username"`;DisplayName string `json:"display_name"`;Role string `json:"role"`;Password string `json:"password"`}
 		if !decodeJSON(w,r,&req){return};req.Username=strings.TrimSpace(req.Username);req.DisplayName=strings.TrimSpace(req.DisplayName)
 		if len(req.Username)<3||len(req.Username)>64||req.DisplayName==""||len(req.DisplayName)>120{http.Error(w,"Informe usuário e nome válidos",400);return}
-		if req.Role!="admin"&&req.Role!="manager"&&req.Role!="cashier"&&req.Role!="stockkeeper"{http.Error(w,"Perfil inválido",400);return}
+		if req.Role!="manager"&&req.Role!="cashier"&&req.Role!="stockkeeper"&&req.Role!="viewer"{http.Error(w,"Perfil inválido. O Administrador só pode criar Gerente, Operador ou Consulta.",400);return}
 		hash,err:=passwordHash(req.Password);if err!=nil{http.Error(w,err.Error(),400);return}
 		res,err:=a.db.Exec("INSERT INTO users(username,password_hash,display_name,role,active) VALUES(?,?,?,?,1)",req.Username,hash,req.DisplayName,req.Role);if err!=nil{http.Error(w,"Não foi possível criar usuário; nome pode já existir",409);return}
 		id,_:=res.LastInsertId();a.writeAudit(u.ID,"user_created","user",strconv.FormatInt(id,10),"Criado usuário "+req.Username+" com perfil "+req.Role);jsonOut(w,201,map[string]any{"id":id,"username":req.Username,"display_name":req.DisplayName,"role":req.Role,"active":true})
@@ -183,7 +173,10 @@ func (a *App) userStatus(w http.ResponseWriter,r *http.Request) {
 	id,err:=strconv.ParseInt(r.URL.Query().Get("id"),10,64);if err!=nil||id<=0{http.Error(w,"ID inválido",400);return}
 	var req struct{Active bool `json:"active"`};if !decodeJSON(w,r,&req){return}
 	if id==u.ID&&!req.Active{http.Error(w,"Não é possível desativar a própria conta",409);return}
-	res,err:=a.db.Exec("UPDATE users SET active=? WHERE id=?",boolInt(req.Active),id);if err!=nil{http.Error(w,"Database error",500);return};n,_:=res.RowsAffected();if n==0{http.Error(w,"Usuário não encontrado",404);return}
+	var targetRole string
+	if err:=a.db.QueryRow("SELECT role FROM users WHERE id=?",id).Scan(&targetRole);err!=nil{http.Error(w,"Usuário não encontrado",404);return}
+	if targetRole=="admin" {http.Error(w,"O Administrador não pode bloquear outro Administrador. Somente o Master pode administrar contas de Administrador.",403);return}
+	res,err:=a.db.Exec("UPDATE users SET active=? WHERE id=? AND role<>'admin'",boolInt(req.Active),id);if err!=nil{http.Error(w,"Database error",500);return};n,_:=res.RowsAffected();if n==0{http.Error(w,"Usuário não encontrado",404);return}
 	a.writeAudit(u.ID,"user_status_changed","user",strconv.FormatInt(id,10),fmt.Sprintf("active=%t",req.Active));jsonOut(w,200,map[string]any{"ok":true,"id":id,"active":req.Active})
 }
 func (a *App) userRole(w http.ResponseWriter,r *http.Request) {
@@ -194,11 +187,11 @@ func (a *App) userRole(w http.ResponseWriter,r *http.Request) {
 	if err!=nil||id<=0 { http.Error(w,"ID inválido",400);return }
 	var req struct { Role string `json:"role"` }
 	if !decodeJSON(w,r,&req) { return }
-	if req.Role!="admin"&&req.Role!="manager"&&req.Role!="cashier"&&req.Role!="stockkeeper" { http.Error(w,"Perfil inválido",400);return }
+	if req.Role!="manager"&&req.Role!="cashier"&&req.Role!="stockkeeper"&&req.Role!="viewer" { http.Error(w,"Perfil inválido. O Administrador só pode atribuir níveis inferiores.",400);return }
 	if id==u.ID&&req.Role!="admin" { http.Error(w,"Não é permitido remover o próprio perfil de administrador",409);return }
 	var oldRole string
 	var active int
-	if err:=a.db.QueryRow("SELECT role,active FROM users WHERE id=?",id).Scan(&oldRole,&active);err!=nil { http.Error(w,"Usuário não encontrado",404);return }
+	if err:=a.db.QueryRow("SELECT role,active FROM users WHERE id=?",id).Scan(&oldRole,&active);err!=nil { http.Error(w,"Usuário não encontrado",404);return }; if oldRole=="admin" { http.Error(w,"Somente o Master pode alterar uma conta de Administrador.",403);return }
 	if active==1&&oldRole=="admin"&&req.Role!="admin" {
 		var admins int
 		if err:=a.db.QueryRow("SELECT COUNT(*) FROM users WHERE role='admin' AND active=1").Scan(&admins);err!=nil { http.Error(w,"Não foi possível validar administradores ativos",500);return }
@@ -221,7 +214,7 @@ func (a *App) userPasswordReset(w http.ResponseWriter,r *http.Request) {
 	if !decodeJSON(w,r,&req) { return }
 	hash,err:=passwordHash(req.Password);if err!=nil { http.Error(w,err.Error(),400);return }
 	var username string
-	if err:=a.db.QueryRow("SELECT username FROM users WHERE id=?",id).Scan(&username);err!=nil { http.Error(w,"Usuário não encontrado",404);return }
+	if err:=a.db.QueryRow("SELECT username FROM users WHERE id=? AND role<>'admin'",id).Scan(&username);err!=nil { http.Error(w,"Usuário não encontrado ou reservado ao Master.",404);return }
 	if _,err:=a.db.Exec("UPDATE users SET password_hash=? WHERE id=?",hash,id);err!=nil { http.Error(w,"Não foi possível redefinir a senha",500);return }
 	exceptToken:=""
 	if cookie,err:=r.Cookie("markys_session");err==nil { exceptToken=cookie.Value }
@@ -244,9 +237,10 @@ func (a *App) authMiddleware(next http.Handler) http.Handler {
 		if !strings.HasPrefix(p,"/api/")||p=="/api/health"||p=="/api/auth/status"||p=="/api/auth/companies"||p=="/api/auth/setup"||p=="/api/auth/login"||p=="/api/auth/recover-admin"||p=="/api/auth/logout"||p=="/api/auth/manager-verify"{next.ServeHTTP(w,r);return}
 		u:=a.currentUser(r);if u==nil{http.Error(w,"Autenticação necessária",http.StatusUnauthorized);return}
 		if p=="/api/company/branding"&&r.Method==http.MethodGet{next.ServeHTTP(w,r);return}
-		if strings.HasPrefix(p,"/api/admin/")||p=="/api/users"||strings.HasPrefix(p,"/api/users/"){if u.Role!="admin"{http.Error(w,"Acesso negado",403);return};next.ServeHTTP(w,r);return}
+		if strings.HasPrefix(p,"/api/admin/companies") { if u.Role!="master" {http.Error(w,"Somente o Master pode gerenciar empresas.",403);return};next.ServeHTTP(w,r);return }
+		if strings.HasPrefix(p,"/api/admin/")||p=="/api/users"||strings.HasPrefix(p,"/api/users/"){if u.Role!="admin"&&u.Role!="master"{http.Error(w,"Acesso negado",403);return};next.ServeHTTP(w,r);return}
 		switch u.Role {
-		case "admin","manager": next.ServeHTTP(w,r)
+		case "master","admin","manager": next.ServeHTTP(w,r)
 		case "cashier":
 			if p=="/api/cash"&&(r.Method==http.MethodGet||r.Method==http.MethodPost)||p=="/api/sales"&&r.Method==http.MethodPost||p=="/api/products"&&r.Method==http.MethodGet||p=="/api/categories"&&r.Method==http.MethodGet||p=="/api/suppliers"&&r.Method==http.MethodGet||p=="/api/customers"&&r.Method==http.MethodGet||p=="/api/quotes" {next.ServeHTTP(w,r);return};http.Error(w,"Seu perfil não permite esta operação",403)
 		case "stockkeeper":

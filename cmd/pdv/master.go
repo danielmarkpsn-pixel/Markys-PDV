@@ -83,7 +83,7 @@ func (a *App) authRecoverMaster(w http.ResponseWriter, r *http.Request) {
 	}
 	var username, recoveryHash, lockedUntil string
 	var attempts int
-	err = a.db.QueryRow("SELECT username,recovery_hash,recovery_attempts,recovery_locked_until FROM master_accounts WHERE id=1 AND active=1").Scan(&username,&recoveryHash,&attempts,&lockedUntil)
+	err := a.db.QueryRow("SELECT username,recovery_hash,recovery_attempts,recovery_locked_until FROM master_accounts WHERE id=1 AND active=1").Scan(&username,&recoveryHash,&attempts,&lockedUntil)
 	if err == sql.ErrNoRows { http.Error(w, "Conta Master ainda não foi configurada pelo proprietário.", 409); return }
 	if err != nil { http.Error(w, "Não foi possível consultar a configuração Master.", 500); return }
 

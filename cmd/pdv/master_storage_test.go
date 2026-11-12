@@ -9,11 +9,18 @@ import (
 )
 
 func TestMasterDatabasePathIsOutsideData(t *testing.T) {
-	path, err := masterDatabasePath(filepath.Join(t.TempDir(), "data", "markys-pdv.db"))
+	dataPath := filepath.Join(t.TempDir(), "data", "markys-pdv.db")
+	path, err := masterDatabasePath(dataPath)
 	if err != nil { t.Fatal(err) }
-	want := filepath.Join(filepath.Dir(filepath.Dir(path)), ".markys-master.db")
+	want := filepath.Join(filepath.Dir(filepath.Dir(dataPath)), ".markys-master.db")
 	if path != want { t.Fatalf("master path = %q, want %q", path, want) }
-	if filepath.Base(filepath.Dir(path)) == "data" { t.Fatalf("Master file must not be inside DATA: %q", path) }
+	if filepath.Dir(path) == filepath.Dir(dataPath) { t.Fatalf("Master file must not be inside DATA: %q", path) }
+}
+
+func TestMasterPathOverrideCannotPointInsideData(t *testing.T) {
+	dataPath := filepath.Join(t.TempDir(), "data", "markys-pdv.db")
+	t.Setenv("PDV_MASTER_DB", filepath.Join(filepath.Dir(dataPath), ".markys-master.db"))
+	if _, err := masterDatabasePath(dataPath); err == nil { t.Fatal("expected a Master path inside DATA to be rejected") }
 }
 
 func TestMasterMetadataMovesOutOfDataWithoutMovingOperationalRows(t *testing.T) {

@@ -32,12 +32,20 @@ func (a *App) masterStore() *sql.DB {
 // masterDatabasePath places the protected file beside (not inside) DATA.
 // PDV_MASTER_DB can override the default location for managed installations.
 func masterDatabasePath(dataPath string) (string, error) {
-	if configured := strings.TrimSpace(env("PDV_MASTER_DB", "")); configured != "" {
-		return filepath.Abs(configured)
-	}
-	abs, err := filepath.Abs(dataPath)
+	dataAbs, err := filepath.Abs(dataPath)
 	if err != nil { return "", err }
-	root := filepath.Dir(filepath.Dir(abs))
+	dataDir := filepath.Dir(dataAbs)
+	if configured := strings.TrimSpace(env("PDV_MASTER_DB", "")); configured != "" {
+		masterAbs, err := filepath.Abs(configured)
+		if err != nil { return "", err }
+		rel, err := filepath.Rel(dataDir, masterAbs)
+		if err != nil { return "", err }
+		if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))) {
+			return "", errors.New("o arquivo Master deve ficar fora da pasta DATA")
+		}
+		return masterAbs, nil
+	}
+	root := filepath.Dir(dataDir)
 	return filepath.Join(root, ".markys-master.db"), nil
 }
 

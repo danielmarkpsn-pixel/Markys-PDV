@@ -37,7 +37,7 @@ func (a *App) appForCompany(companyID int64) (*App, error) {
 
 	// Never let SQLite silently create an empty database when a stored path points
 	// to an old installation folder. If the registered file moved with the data
-	// directory, recover it from the stable companies folder beside the master DB.
+	// directory, recover it from the stable companies folder inside DATA.
 	path, err := filepath.Abs(path)
 	if err != nil { return nil, errors.New("Caminho do banco da empresa inválido") }
 	if info, statErr := os.Stat(path); statErr != nil || !info.Mode().IsRegular() {

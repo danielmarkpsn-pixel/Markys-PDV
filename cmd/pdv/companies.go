@@ -124,8 +124,8 @@ func (a *App) companyBootstrap(w http.ResponseWriter,r *http.Request) {
  jsonOut(w,201,map[string]any{"ok":true,"company_id":id,"username":q.Username,"user_id":userID})
 }
 
-// companyStorageRoot keeps tenant databases beside the master database, not in the process working directory.
-// This prevents a Windows shortcut or installer update from silently changing the data location.
+// companyStorageRoot keeps tenant databases inside DATA, not in the process working directory.
+// The separate Master file remains outside DATA and never changes this operational data location.
 func (a *App) companyStorageRoot() (string,error) {
  base:=strings.TrimSpace(a.dbPath)
  if base=="" { return "",fmt.Errorf("caminho do banco principal não configurado") }

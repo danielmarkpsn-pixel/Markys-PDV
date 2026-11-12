@@ -32,9 +32,8 @@ func initCompanies(db *sql.DB) error {
  return nil
 }
 func (a *App) companyAdmin(w http.ResponseWriter,r *http.Request) bool {
- id:=requestUserID(a,r); if id<=0 {http.Error(w,"Sessão necessária",401);return false}
- var role string
- if err:=a.db.QueryRow("SELECT role FROM users WHERE id=? AND active=1",id).Scan(&role);err!=nil||role!="admin"{http.Error(w,"Somente o administrador geral pode gerenciar empresas",403);return false}
+ u:=a.currentUser(r); if u==nil {http.Error(w,"Sessão necessária",401);return false}
+ if u.Role!="master" {http.Error(w,"Somente o Master pode cadastrar, inativar ou configurar empresas.",403);return false}
  return true
 }
 func (a *App) companies(w http.ResponseWriter,r *http.Request) {

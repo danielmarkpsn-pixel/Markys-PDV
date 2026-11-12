@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -25,6 +26,7 @@ func TestMasterPathOverrideCannotPointInsideData(t *testing.T) {
 
 func TestMasterMetadataMovesOutOfDataWithoutMovingOperationalRows(t *testing.T) {
 	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "data"), 0755); err != nil { t.Fatal(err) }
 	data, err := sql.Open("sqlite", filepath.Join(dir, "data", "markys-pdv.db"))
 	if err != nil { t.Fatal(err) }
 	defer data.Close()

@@ -2,6 +2,11 @@
 
 A conta Master é única, permanente e criada pelo proprietário da instalação. Ela não é criada pelo formulário público de primeiro acesso.
 
+## Seleção do modo de operação
+
+- **Modo individual (padrão):** mantenha `MARKYS_MODE` sem definir. O cadastro inicial e a administração local existentes continuam disponíveis.
+- **Modo compartilhado:** defina `MARKYS_MODE=shared`. Nesse modo, a inicialização exige a conta Master e aplica a hierarquia de permissões descrita abaixo.
+
 ## Configuração inicial no Windows
 
 Antes de iniciar o MARKYS PDV pela primeira vez, configure no ambiente do processo:
@@ -14,6 +19,7 @@ Antes de iniciar o MARKYS PDV pela primeira vez, configure no ambiente do proces
 Exemplo de configuração temporária no PowerShell (substitua os valores por segredos fortes e exclusivos):
 
 ```powershell
+$env:MARKYS_MODE = "shared"
 $env:MARKYS_MASTER_USERNAME = "proprietario"
 $env:MARKYS_MASTER_NAME = "Proprietário"
 $env:MARKYS_MASTER_PASSWORD = "SENHA-FORTE-EXCLUSIVA"

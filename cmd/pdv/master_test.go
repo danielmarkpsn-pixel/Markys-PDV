@@ -48,6 +48,7 @@ func TestMasterBootstrapAndOneTimeRecoveryRotation(t *testing.T) {
 }
 
 func TestMasterRecoveryRejectsRemoteRequests(t *testing.T) {
+	t.Setenv("MARKYS_MODE", "shared")
 	app := newCancellationTestApp(t)
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/recover-admin", strings.NewReader(`{}`))
 	req.RemoteAddr = "192.0.2.10:12345"

@@ -120,7 +120,7 @@ func (a *App) authRecoverMaster(w http.ResponseWriter, r *http.Request) {
 	if err != nil { http.Error(w, "Não foi possível proteger o novo código de recuperação.", 500); return }
 	result, err := a.db.Exec(`UPDATE master_accounts
 		SET password_hash=?, recovery_hash=?, recovery_attempts=0, recovery_locked_until='', updated_at=CURRENT_TIMESTAMP
-		WHERE id=1 AND username=? COLLATE NOCASE`, newPasswordHash, rotatedHash, username)
+		WHERE id=1 AND username=? COLLATE NOCASE AND recovery_hash=?`, newPasswordHash, rotatedHash, username, recoveryHash)
 	if err != nil { http.Error(w, "Não foi possível concluir a recuperação.", 500); return }
 	changed, err := result.RowsAffected()
 	if err != nil || changed != 1 { http.Error(w, "A conta Master foi alterada durante a recuperação. Tente novamente.", 409); return }

@@ -176,7 +176,7 @@ func (a *App) userStatus(w http.ResponseWriter,r *http.Request) {
 	var targetRole string
 	if err:=a.db.QueryRow("SELECT role FROM users WHERE id=?",id).Scan(&targetRole);err!=nil{http.Error(w,"Usuário não encontrado",404);return}
 	if sharedModeEnabled() && targetRole=="admin" {http.Error(w,"O Administrador não pode bloquear outro Administrador. Somente o Master pode administrar contas de Administrador.",403);return}
-	res,err:=a.db.Exec("UPDATE users SET active=? WHERE id=? AND role<>'admin'",boolInt(req.Active),id);if err!=nil{http.Error(w,"Database error",500);return};n,_:=res.RowsAffected();if n==0{http.Error(w,"Usuário não encontrado",404);return}
+	statusSQL:="UPDATE users SET active=? WHERE id=?";if sharedModeEnabled(){statusSQL+=" AND role<>'admin'"};res,err:=a.db.Exec(statusSQL,boolInt(req.Active),id);if err!=nil{http.Error(w,"Database error",500);return};n,_:=res.RowsAffected();if n==0{http.Error(w,"Usuário não encontrado",404);return}
 	a.writeAudit(u.ID,"user_status_changed","user",strconv.FormatInt(id,10),fmt.Sprintf("active=%t",req.Active));jsonOut(w,200,map[string]any{"ok":true,"id":id,"active":req.Active})
 }
 func (a *App) userRole(w http.ResponseWriter,r *http.Request) {

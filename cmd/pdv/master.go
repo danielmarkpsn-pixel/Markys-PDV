@@ -77,6 +77,7 @@ func isLoopbackRequest(r *http.Request) bool {
 // authRecoverMaster is the only password-recovery path. It requires the
 // one-time recovery secret and is restricted to the local machine.
 func (a *App) authRecoverMaster(w http.ResponseWriter, r *http.Request) {
+	if !sharedModeEnabled() { http.Error(w, "A recuperação Master existe somente no modo compartilhado.", http.StatusForbidden); return }
 	if r.Method != http.MethodPost { w.Header().Set("Allow", "POST"); http.Error(w, "Método não permitido", 405); return }
 	if !isLoopbackRequest(r) { http.Error(w, "A recuperação do Master só pode ser executada neste computador.", http.StatusForbidden); return }
 	var req struct {

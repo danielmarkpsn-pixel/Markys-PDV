@@ -10,6 +10,7 @@ import (
 
 func TestMasterBootstrapAndOneTimeRecoveryRotation(t *testing.T) {
 	app := newCancellationTestApp(t)
+	t.Setenv("MARKYS_MODE", "shared")
 	t.Setenv("MARKYS_MASTER_USERNAME", "owner")
 	t.Setenv("MARKYS_MASTER_NAME", "Proprietário")
 	t.Setenv("MARKYS_MASTER_PASSWORD", "senha-inicial-forte-123")

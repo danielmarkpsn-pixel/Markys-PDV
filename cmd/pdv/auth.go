@@ -243,6 +243,8 @@ func (a *App) authMiddleware(next http.Handler) http.Handler {
 			if p=="/api/cash"&&(r.Method==http.MethodGet||r.Method==http.MethodPost)||p=="/api/sales"&&r.Method==http.MethodPost||p=="/api/products"&&r.Method==http.MethodGet||p=="/api/categories"&&r.Method==http.MethodGet||p=="/api/suppliers"&&r.Method==http.MethodGet||p=="/api/customers"&&r.Method==http.MethodGet||p=="/api/quotes" {next.ServeHTTP(w,r);return};http.Error(w,"Seu perfil não permite esta operação",403)
 		case "stockkeeper":
 			if p=="/api/products"||p=="/api/categories"||p=="/api/suppliers"||p=="/api/stock-movements"||p=="/api/reports/stock.csv"||p=="/api/reports/movements.csv" {next.ServeHTTP(w,r);return};http.Error(w,"Seu perfil não permite esta operação",403)
+		case "viewer":
+			if r.Method==http.MethodGet && (p=="/api/products"||p=="/api/categories"||p=="/api/suppliers"||p=="/api/customers"||p=="/api/sales"||p=="/api/cash"||p=="/api/quotes"||p=="/api/stock-movements"||strings.HasPrefix(p,"/api/reports/")) {next.ServeHTTP(w,r);return};http.Error(w,"O perfil Consulta permite somente visualizar informações.",403)
 		default:http.Error(w,"Perfil sem permissões",403)
 		}
 	})

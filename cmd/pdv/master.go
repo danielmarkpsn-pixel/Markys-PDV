@@ -12,6 +12,13 @@ import (
 	"time"
 )
 
+// sharedModeEnabled keeps the existing single-company installation as the default.
+// The Master hierarchy is activated explicitly with MARKYS_MODE=shared.
+func sharedModeEnabled() bool {
+	mode := strings.ToLower(strings.TrimSpace(env("MARKYS_MODE", "individual")))
+	return mode == "shared" || mode == "compartilhado"
+}
+
 // initMasterAccount creates the singleton Master account only once. Secrets are
 // supplied by the machine owner through environment variables and are never
 // written to source control or returned by an API.
@@ -32,13 +39,14 @@ func initMasterAccount(db *sql.DB) error {
 	var count int
 	if err := db.QueryRow("SELECT COUNT(*) FROM master_accounts").Scan(&count); err != nil { return err }
 	if count > 0 { return nil }
+	if !sharedModeEnabled() { return nil }
 
 	username := strings.TrimSpace(env("MARKYS_MASTER_USERNAME", ""))
 	displayName := strings.TrimSpace(env("MARKYS_MASTER_NAME", "Proprietário"))
 	password := env("MARKYS_MASTER_PASSWORD", "")
 	recoveryCode := env("MARKYS_MASTER_RECOVERY_CODE", "")
 	// An incomplete environment must not create a weak/default Master account.
-	if username == "" && password == "" && recoveryCode == "" { return nil }
+	if username == "" && password == "" && recoveryCode == "" { return errors.New("Modo compartilhado exige a configuração inicial da conta Master por MARKYS_MASTER_USERNAME, MARKYS_MASTER_PASSWORD e MARKYS_MASTER_RECOVERY_CODE") }
 	if len(username) < 3 || len(username) > 64 || len(password) < 10 || len(password) > 256 || len(recoveryCode) < 16 || len(recoveryCode) > 256 {
 		return errors.New("Configuração Master incompleta: defina MARKYS_MASTER_USERNAME, MARKYS_MASTER_PASSWORD (10+ caracteres) e MARKYS_MASTER_RECOVERY_CODE (16+ caracteres)")
 	}

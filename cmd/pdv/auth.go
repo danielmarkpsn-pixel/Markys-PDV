@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -11,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -66,7 +64,7 @@ func (a *App) authStatus(w http.ResponseWriter,r *http.Request) {
 	if err:=app.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count);err!=nil{http.Error(w,"Database error",500);return}
 	current:=app.currentUser(r)
 	setupRequired:=count==0
-	if id==0 && a.masterConfigured() { setupRequired=false }
+	if id==0 { setupRequired=false }
 	jsonOut(w,200,map[string]any{"setup_required":setupRequired,"authenticated":current!=nil,"user":current,"company_id":id,"master_configured":a.masterConfigured()})
 }
 func (a *App) authSetup(w http.ResponseWriter,r *http.Request) {

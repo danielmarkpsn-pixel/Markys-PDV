@@ -53,13 +53,14 @@ Não é necessário instalar o Markys PDV, editar o arquivo hosts ou executar sc
 | Variável | Padrão | Finalidade |
 | --- | --- | --- |
 | `PDV_ADDR` | `0.0.0.0:2222` | Escuta HTTP nas interfaces de rede do servidor |
-| `PDV_DB` | `data/markys-pdv.db` | Banco SQLite no computador principal |
+| `PDV_DB` | `data/markys-pdv.db` | Banco SQLite operacional no computador principal |
+| `PDV_MASTER_DB` | `.markys-master.db` ao lado de `data` | Arquivo separado e protegido da conta Master e do cadastro de empresas |
 
 As regras do Firewall permitem TCP 2222 (PDV) e UDP 5353 (descoberta mDNS) somente no perfil Privado e na sub-rede local. Não encaminhe essa porta para a internet. Se a rede do Windows estiver como Pública, altere para Privada somente quando for uma rede confiável.
 
 ## Dados e backups
 
-O banco fica em `data/markys-pdv.db` na pasta do servidor. Os dispositivos conectados pela rede não mantêm cópias independentes. Antes de atualizar, encerre o servidor e faça backup da pasta `data`. Proteja os backups, pois podem conter dados comerciais e pessoais.
+Os dados operacionais ficam na pasta `data`, incluindo `markys-pdv.db` e os bancos das empresas em `data/companies`. Essa pasta permanece normal, visível e sem proteção especial do Windows. O arquivo exclusivo da conta Master fica fora dela, como `.markys-master.db`, oculto e com permissões restritas ao proprietário, SYSTEM e Administradores locais. O Master não é armazenado dentro de `data`. Antes de atualizar, encerre o servidor e faça backup da pasta `data` normalmente; não é necessário ocultá-la nem alterar suas permissões.
 
 ## Limites e validação
 

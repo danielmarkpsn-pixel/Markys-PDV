@@ -43,7 +43,7 @@ func (a *App) companyAdmin(w http.ResponseWriter,r *http.Request) bool {
 func (a *App) companies(w http.ResponseWriter,r *http.Request) {
  if !a.companyAdmin(w,r){return}
  if r.Method=="GET" {
- rows,err:=a.db.Query("SELECT id,legal_name,trade_name,document,status,database_mode,database_path,sync_mode,sync_status,created_at,theme_color,logo_data_url FROM companies ORDER BY legal_name COLLATE NOCASE")
+ rows,err:=a.masterStore().Query("SELECT id,legal_name,trade_name,document,status,database_mode,database_path,sync_mode,sync_status,created_at,theme_color,logo_data_url FROM companies ORDER BY legal_name COLLATE NOCASE")
  if err!=nil{http.Error(w,"Erro ao consultar empresas",500);return};defer rows.Close()
  type C struct{ID int64 `json:"id"`;Legal string `json:"legal_name"`;Trade string `json:"trade_name"`;Doc string `json:"document"`;Status string `json:"status"`;Mode string `json:"database_mode"`;Path string `json:"database_path"`;Sync string `json:"sync_mode"`;SyncStatus string `json:"sync_status"`;Created string `json:"created_at"`;ThemeColor string `json:"theme_color"`;LogoDataURL string `json:"logo_data_url"`}
  out:=[]C{};for rows.Next(){var c C;if rows.Scan(&c.ID,&c.Legal,&c.Trade,&c.Doc,&c.Status,&c.Mode,&c.Path,&c.Sync,&c.SyncStatus,&c.Created,&c.ThemeColor,&c.LogoDataURL)!=nil{http.Error(w,"Erro ao ler empresas",500);return};out=append(out,c)};jsonOut(w,200,out);return
@@ -75,8 +75,8 @@ func (a *App) companies(w http.ResponseWriter,r *http.Request) {
    in,e:=os.Open(candidate);if e!=nil{http.Error(w,"Falha ao abrir origem",500);return};out,e:=os.OpenFile(target,os.O_WRONLY|os.O_CREATE|os.O_EXCL,0600);if e!=nil{in.Close();http.Error(w,"Falha ao criar destino sem sobrescrever arquivo existente",500);return};_,copyErr:=io.Copy(out,in);syncErr:=out.Sync();closeOutErr:=out.Close();closeInErr:=in.Close();if copyErr!=nil||syncErr!=nil||closeOutErr!=nil||closeInErr!=nil{os.Remove(target);http.Error(w,"Falha ao importar banco; origem preservada",500);return}
   }
  }
- var linkedCount int;if err:=a.db.QueryRow("SELECT COUNT(*) FROM companies WHERE database_path=?",target).Scan(&linkedCount);err!=nil{http.Error(w,"Não foi possível verificar o banco cadastrado",500);return};if linkedCount>0{http.Error(w,"Este banco já está vinculado a outra empresa; use um arquivo exclusivo para manter os dados isolados",409);return}
- res,err:=a.db.Exec("INSERT INTO companies(legal_name,trade_name,document,status,database_mode,database_path,sync_mode,sync_status,theme_color,logo_data_url) VALUES(?,?,?,'active',?,?,'local_cloud','not_configured',?,?)",q.Legal,q.Trade,q.Document,q.Mode,target,q.ThemeColor,q.LogoDataURL)
+ var linkedCount int;if err:=a.masterStore().QueryRow("SELECT COUNT(*) FROM companies WHERE database_path=?",target).Scan(&linkedCount);err!=nil{http.Error(w,"Não foi possível verificar o banco cadastrado",500);return};if linkedCount>0{http.Error(w,"Este banco já está vinculado a outra empresa; use um arquivo exclusivo para manter os dados isolados",409);return}
+ res,err:=a.masterStore().Exec("INSERT INTO companies(legal_name,trade_name,document,status,database_mode,database_path,sync_mode,sync_status,theme_color,logo_data_url) VALUES(?,?,?,'active',?,?,'local_cloud','not_configured',?,?)",q.Legal,q.Trade,q.Document,q.Mode,target,q.ThemeColor,q.LogoDataURL)
  if err!=nil{http.Error(w,"Empresa não cadastrada; documento pode já existir",409);return};id,err:=res.LastInsertId();if err!=nil{http.Error(w,"Não foi possível confirmar cadastro",500);return}
  a.writeAudit(requestUserID(a,r),"company_created","company",fmt.Sprint(id),"Empresa cadastrada: "+q.Mode)
  jsonOut(w,201,map[string]any{"id":id,"legal_name":q.Legal,"trade_name":q.Trade,"document":q.Document,"status":"active","database_mode":q.Mode,"database_path":target,"sync_status":"not_configured","message":"Cadastro local concluído. Sincronização em nuvem não está ativa; nenhum dado foi enviado."})
@@ -84,7 +84,7 @@ func (a *App) companies(w http.ResponseWriter,r *http.Request) {
 func (a *App) companyStatus(w http.ResponseWriter,r *http.Request){
  if !a.companyAdmin(w,r){return};if r.Method!="PATCH"{http.Error(w,"Método não permitido",405);return}
  var q struct{Active bool `json:"active"`};if json.NewDecoder(http.MaxBytesReader(w,r.Body,1<<20)).Decode(&q)!=nil{http.Error(w,"Dados inválidos",400);return}
- status:="inactive";if q.Active{status="active"};id:=r.URL.Query().Get("id");res,err:=a.db.Exec("UPDATE companies SET status=? WHERE id=?",status,id);if err!=nil{http.Error(w,"Falha ao alterar status",500);return};n,_:=res.RowsAffected();if n==0{http.Error(w,"Empresa não encontrada",404);return};a.writeAudit(requestUserID(a,r),"company_status_changed","company",id,status);jsonOut(w,200,map[string]string{"status":status})
+ status:="inactive";if q.Active{status="active"};id:=r.URL.Query().Get("id");res,err:=a.masterStore().Exec("UPDATE companies SET status=? WHERE id=?",status,id);if err!=nil{http.Error(w,"Falha ao alterar status",500);return};n,_:=res.RowsAffected();if n==0{http.Error(w,"Empresa não encontrada",404);return};a.writeAudit(requestUserID(a,r),"company_status_changed","company",id,status);jsonOut(w,200,map[string]string{"status":status})
 }
 
 func validateCompanyLogo(data string) error {
@@ -101,8 +101,8 @@ func (a *App) companyBrandingUpdate(w http.ResponseWriter,r *http.Request) {
  var q struct{ThemeColor string `json:"theme_color"`;LogoDataURL string `json:"logo_data_url"`;ClearLogo bool `json:"clear_logo"`}
  d:=json.NewDecoder(http.MaxBytesReader(w,r.Body,750000));d.DisallowUnknownFields();if d.Decode(&q)!=nil{http.Error(w,"Dados inválidos",400);return}
  if !regexp.MustCompile("^#[0-9a-fA-F]{6}$").MatchString(q.ThemeColor){http.Error(w,"Cor inválida: use hexadecimal, por exemplo #1677e8",400);return}
- if err:=validateCompanyLogo(q.LogoDataURL);err!=nil{http.Error(w,err.Error(),400);return};if q.LogoDataURL==""&&!q.ClearLogo{if err:=a.db.QueryRow("SELECT logo_data_url FROM companies WHERE id=?",id).Scan(&q.LogoDataURL);err!=nil{http.Error(w,"Empresa não encontrada",404);return}};if q.ClearLogo{q.LogoDataURL=""}
- res,err:=a.db.Exec("UPDATE companies SET theme_color=?,logo_data_url=? WHERE id=?",q.ThemeColor,q.LogoDataURL,id);if err!=nil{http.Error(w,"Não foi possível salvar identidade visual",500);return}
+ if err:=validateCompanyLogo(q.LogoDataURL);err!=nil{http.Error(w,err.Error(),400);return};if q.LogoDataURL==""&&!q.ClearLogo{if err:=a.masterStore().QueryRow("SELECT logo_data_url FROM companies WHERE id=?",id).Scan(&q.LogoDataURL);err!=nil{http.Error(w,"Empresa não encontrada",404);return}};if q.ClearLogo{q.LogoDataURL=""}
+ res,err:=a.masterStore().Exec("UPDATE companies SET theme_color=?,logo_data_url=? WHERE id=?",q.ThemeColor,q.LogoDataURL,id);if err!=nil{http.Error(w,"Não foi possível salvar identidade visual",500);return}
  n,_:=res.RowsAffected();if n==0{http.Error(w,"Empresa não encontrada",404);return}
  a.writeAudit(requestUserID(a,r),"company_branding_updated","company",strconv.FormatInt(id,10),"Cor e logo da empresa atualizadas")
  jsonOut(w,200,map[string]any{"ok":true,"id":id,"theme_color":q.ThemeColor})

@@ -75,11 +75,22 @@ func main() {
 	if _, err = db.Exec(string(schema)); err != nil { log.Fatal(err) }
 	if err = migrateProductColumns(db); err != nil { log.Fatal(err) }
 	if err = migrateSaleCustomerColumn(db); err != nil { log.Fatal(err) }
-	if err = initCompanies(db); err != nil { log.Fatal(err) }
-	if err = initMasterAccount(db); err != nil { log.Fatal(err) }
+	masterPath, err := masterDatabasePath(dbPath)
+	if err != nil { log.Fatal(err) }
+	if err = os.MkdirAll(filepath.Dir(masterPath), 0750); err != nil { log.Fatal(err) }
+	masterDB, err := sql.Open("sqlite", masterPath)
+	if err != nil { log.Fatal(err) }
+	defer masterDB.Close()
+	masterDB.SetMaxOpenConns(1)
+	if _, err = masterDB.Exec(`PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;`); err != nil { log.Fatal(err) }
+	if err = initCompanies(masterDB); err != nil { log.Fatal(err) }
+	if err = ensureMasterAccountTable(masterDB); err != nil { log.Fatal(err) }
+	if err = migrateMasterMetadata(db, masterDB); err != nil { log.Fatal(err) }
+	if err = initMasterAccount(masterDB); err != nil { log.Fatal(err) }
+	if err = protectMasterDatabase(masterPath); err != nil { log.Fatalf("Não foi possível proteger o arquivo Master: %v", err) }
 	webRoot, err := fs.Sub(assets, "web")
 	if err != nil { log.Fatal(err) }
-	a := &App{db: db, dbPath: dbPath, masterDB: db}
+	a := &App{db: db, dbPath: dbPath, masterDB: masterDB}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", a.health)
 	mux.HandleFunc("/api/auth/companies", a.authCompanies)

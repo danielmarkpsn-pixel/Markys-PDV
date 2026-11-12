@@ -94,7 +94,7 @@ func (a *App) authLogin(w http.ResponseWriter,r *http.Request) {
 	req.Username=strings.TrimSpace(req.Username)
 	if req.CompanyID==0 && sharedModeEnabled() && a.masterConfigured() {
 		var id int64;var username,displayName,hash string;var active int
-		err:=a.db.QueryRow("SELECT id,username,display_name,password_hash,active FROM master_accounts WHERE id=1").Scan(&id,&username,&displayName,&hash,&active)
+		err:=a.masterStore().QueryRow("SELECT id,username,display_name,password_hash,active FROM master_accounts WHERE id=1").Scan(&id,&username,&displayName,&hash,&active)
 		if err==nil && strings.EqualFold(username,req.Username) {
 			if active!=1 || !verifyPassword(req.Password,hash) { http.Error(w,"Usuário ou senha inválidos.",401); return }
 			u:=authUser{ID:id,Username:username,DisplayName:displayName,Role:"master",Active:true,CompanyID:0,GlobalAdmin:true,SharedMode:true}
@@ -144,7 +144,7 @@ func (a *App) currentUser(r *http.Request) *authUser {
 	if s.isMaster {
 		if a.companyID!=0 { return nil }
 		var u authUser;var active int
-		if err:=a.db.QueryRow("SELECT id,username,display_name,active,created_at FROM master_accounts WHERE id=1").Scan(&u.ID,&u.Username,&u.DisplayName,&active,&u.CreatedAt);err!=nil||active!=1||u.ID!=s.userID{return nil}
+		if err:=a.masterStore().QueryRow("SELECT id,username,display_name,active,created_at FROM master_accounts WHERE id=1").Scan(&u.ID,&u.Username,&u.DisplayName,&active,&u.CreatedAt);err!=nil||active!=1||u.ID!=s.userID{return nil}
 		u.Role="master";u.Active=true;u.CompanyID=0;u.GlobalAdmin=true;u.SharedMode=true;return &u
 	}
 	var u authUser;var active int

@@ -28,8 +28,7 @@ func (a *App) appForCompany(companyID int64) (*App, error) {
 		if a.masterDB != nil { copy.masterDB = a.masterDB }
 		return &copy, nil
 	}
-	master := a.db
-	if a.masterDB != nil { master = a.masterDB }
+	master := a.masterStore()
 	var path, status, document string
 	if err := master.QueryRow("SELECT database_path,status,document FROM companies WHERE id=?", companyID).Scan(&path,&status,&document); err != nil {
 		return nil, errors.New("Empresa não encontrada")
@@ -87,7 +86,7 @@ func (a *App) authCompanies(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet { w.Header().Set("Allow","GET"); http.Error(w,"Método não permitido",405); return }
 	type companyOption struct { ID int64 `json:"id"`; Name string `json:"name"`; Status string `json:"status"`; ThemeColor string `json:"theme_color"`; LogoDataURL string `json:"logo_data_url"` }
 	out := []companyOption{{ID:0,Name:"Empresa principal",Status:"active",ThemeColor:"#1677e8"}}
-	rows,err:=a.db.Query("SELECT id,COALESCE(NULLIF(trade_name,''),legal_name),status,theme_color,logo_data_url FROM companies WHERE status='active' ORDER BY legal_name COLLATE NOCASE")
+	rows,err:=a.masterStore().Query("SELECT id,COALESCE(NULLIF(trade_name,''),legal_name),status,theme_color,logo_data_url FROM companies WHERE status='active' ORDER BY legal_name COLLATE NOCASE")
 	if err != nil { http.Error(w,"Não foi possível listar empresas",500); return }
 	defer rows.Close()
 	for rows.Next() { var c companyOption; if err:=rows.Scan(&c.ID,&c.Name,&c.Status,&c.ThemeColor,&c.LogoDataURL);err!=nil { http.Error(w,"Erro ao ler empresas",500);return }; out=append(out,c) }
@@ -110,7 +109,7 @@ func (a *App) companyBranding(w http.ResponseWriter, r *http.Request) {
 	}
 	var b branding
 	if a.companyID > 0 {
-		err := a.masterDB.QueryRow("SELECT id,COALESCE(NULLIF(trade_name,''),legal_name),legal_name,trade_name,document,theme_color,logo_data_url FROM companies WHERE id=? AND status='active'",a.companyID).Scan(&b.ID,&b.Name,&b.LegalName,&b.TradeName,&b.CNPJ,&b.ThemeColor,&b.LogoDataURL)
+		err := a.masterStore().QueryRow("SELECT id,COALESCE(NULLIF(trade_name,''),legal_name),legal_name,trade_name,document,theme_color,logo_data_url FROM companies WHERE id=? AND status='active'",a.companyID).Scan(&b.ID,&b.Name,&b.LegalName,&b.TradeName,&b.CNPJ,&b.ThemeColor,&b.LogoDataURL)
 		if err != nil { http.Error(w,"Configuração visual da empresa não encontrada",404); return }
 	} else {
 		b.ID=0

@@ -42,4 +42,6 @@ No modo compartilhado, existe uma única identidade Master, com identificador fi
 - Após uma recuperação válida, o código anterior é invalidado e um novo código é gerado. A API o exibe uma única vez; guarde-o imediatamente em local seguro.
 - O código nunca é escrito na auditoria nem armazenado em texto puro.
 
-O proprietário da máquina e do arquivo SQLite continua tendo controle técnico sobre a infraestrutura. Proteja o Windows, a pasta de dados e os backups com permissões do sistema operacional.
+O arquivo `.markys-master.db` é criado fora da pasta `data`, oculto no Windows e com ACL restrita ao usuário proprietário, SYSTEM e Administradores locais. O arquivo guarda somente a identidade Master e o cadastro central de empresas. Os bancos operacionais permanecem em `data` e `data/companies`, visíveis e sem bloqueio especial. A pasta `data` não é ocultada, criptografada nem recebe ACL especial por esta proteção.
+
+O proprietário da máquina continua tendo controle técnico sobre a infraestrutura. Proteja o Windows e faça backups normais da pasta `data`; mantenha também uma cópia segura do arquivo Master para recuperação do cadastro central.

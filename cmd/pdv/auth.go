@@ -94,7 +94,8 @@ func (a *App) authLogin(w http.ResponseWriter,r *http.Request) {
 	if req.CompanyID==0 && a.masterConfigured() {
 		var id int64;var username,displayName,hash string;var active int
 		err:=a.db.QueryRow("SELECT id,username,display_name,password_hash,active FROM master_accounts WHERE id=1").Scan(&id,&username,&displayName,&hash,&active)
-		if err==nil && active==1 && strings.EqualFold(username,req.Username) && verifyPassword(req.Password,hash) {
+		if err==nil && strings.EqualFold(username,req.Username) {
+			if active!=1 || !verifyPassword(req.Password,hash) { http.Error(w,"Usuário ou senha inválidos.",401); return }
 			u:=authUser{ID:id,Username:username,DisplayName:displayName,Role:"master",Active:true,CompanyID:0,GlobalAdmin:true}
 			a.createMasterSession(w,id)
 			a.writeAudit(0,"master_login","master_account","1","Login Master realizado")
@@ -239,7 +240,7 @@ func (a *App) authMiddleware(next http.Handler) http.Handler {
 		if strings.HasPrefix(p,"/api/admin/")||p=="/api/users"||strings.HasPrefix(p,"/api/users/"){if u.Role!="admin"&&u.Role!="master"{http.Error(w,"Acesso negado",403);return};next.ServeHTTP(w,r);return}
 		switch u.Role {
 		case "master","admin","manager": next.ServeHTTP(w,r)
-		case "cashier":
+		case "operator","cashier":
 			if p=="/api/cash"&&(r.Method==http.MethodGet||r.Method==http.MethodPost)||p=="/api/sales"&&r.Method==http.MethodPost||p=="/api/products"&&r.Method==http.MethodGet||p=="/api/categories"&&r.Method==http.MethodGet||p=="/api/suppliers"&&r.Method==http.MethodGet||p=="/api/customers"&&r.Method==http.MethodGet||p=="/api/quotes" {next.ServeHTTP(w,r);return};http.Error(w,"Seu perfil não permite esta operação",403)
 		case "stockkeeper":
 			if p=="/api/products"||p=="/api/categories"||p=="/api/suppliers"||p=="/api/stock-movements"||p=="/api/reports/stock.csv"||p=="/api/reports/movements.csv" {next.ServeHTTP(w,r);return};http.Error(w,"Seu perfil não permite esta operação",403)

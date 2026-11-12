@@ -97,7 +97,10 @@ func main() {
 	mux.Handle("/", http.FileServer(http.FS(webRoot)))
 	srv := &http.Server{Addr: env("PDV_ADDR", "0.0.0.0:2222"), Handler: headers(a.rootHandler(mux)), ReadHeaderTimeout: 5*time.Second}
 	startLocalDiscovery(2222)
+	accessURL := env("PDV_PUBLIC_URL", "http://172.16.1.10:2222")
 	log.Printf("MARKYS PDV listening on %s", srv.Addr)
+	log.Printf("Endereço de acesso dos terminais: %s", accessURL)
+	log.Printf("Confirme que este IPv4 está configurado no Windows/roteador do servidor.")
 	openBrowserWhenReady()
 	log.Fatal(srv.ListenAndServe())
 }

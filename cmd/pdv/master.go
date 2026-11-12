@@ -81,9 +81,6 @@ func (a *App) authRecoverMaster(w http.ResponseWriter, r *http.Request) {
 	if len(req.Username) < 3 || len(req.Username) > 64 || strings.TrimSpace(req.RecoveryCode) == "" {
 		http.Error(w, "Informe o usuário Master e o código de recuperação.", 400); return
 	}
-	newPasswordHash, err := passwordHash(req.Password)
-	if err != nil { http.Error(w, err.Error(), 400); return }
-
 	var username, recoveryHash, lockedUntil string
 	var attempts int
 	err = a.db.QueryRow("SELECT username,recovery_hash,recovery_attempts,recovery_locked_until FROM master_accounts WHERE id=1 AND active=1").Scan(&username,&recoveryHash,&attempts,&lockedUntil)
@@ -114,6 +111,8 @@ func (a *App) authRecoverMaster(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Usuário ou código de recuperação inválido.", 401); return
 	}
 
+	newPasswordHash, err := passwordHash(req.Password)
+	if err != nil { http.Error(w, err.Error(), 400); return }
 	rotatedCode, err := newMasterRecoveryCode()
 	if err != nil { http.Error(w, "Não foi possível gerar um novo código de recuperação.", 500); return }
 	rotatedHash, err := passwordHash(rotatedCode)

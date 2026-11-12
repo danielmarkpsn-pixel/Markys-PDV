@@ -163,11 +163,14 @@ func (a *App) masterDeleteUser(w http.ResponseWriter, r *http.Request) {
 			if err == sql.ErrNoRows { http.Error(w, "Usuário não encontrado.", 404) } else { http.Error(w, "Não foi possível consultar o usuário.", 500) }
 			return
 		}
-		if _, err := tenant.db.Exec("DELETE FROM users WHERE id=?", userID); err != nil {
-			http.Error(w, "Não foi possível excluir o usuário. Verifique se há registros vinculados; se houver, desative o acesso em vez de apagar o histórico.", 409); return
+		// Preserve historical foreign-key references (sales, cash sessions and audit)
+		// while permanently removing this identity's ability to sign in.
+		disabledName := "removido-" + strconv.FormatInt(userID,10) + "-" + username
+		if _, err := tenant.db.Exec("UPDATE users SET active=0,username=? WHERE id=?", disabledName, userID); err != nil {
+			http.Error(w, "Não foi possível remover o acesso deste usuário.", 500); return
 		}
-		tenant.writeAudit(0, "user_deleted_by_master", "user", strconv.FormatInt(userID,10), "Usuário "+username+" ("+role+") excluído pelo Master")
-		jsonOut(w, 200, map[string]any{"ok":true,"company_id":companyID,"user_id":userID})
+		tenant.writeAudit(0, "user_deleted_by_master", "user", strconv.FormatInt(userID,10), "Acesso do usuário "+username+" ("+role+") removido pelo Master; histórico preservado")
+		jsonOut(w, 200, map[string]any{"ok":true,"company_id":companyID,"user_id":userID,"access_removed":true,"history_preserved":true})
 	default:
 		w.Header().Set("Allow", "GET, DELETE")
 		http.Error(w, "Método não permitido", 405)

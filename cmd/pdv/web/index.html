@@ -740,6 +740,7 @@ function enterApp(user){
   const adminGroup=document.querySelector('#moduleAdminSales');
   if(adminGroup)adminGroup.hidden=!(isAdmin||isMaster);
   document.querySelector('#usersNav').hidden=!(isAdmin||isMaster);
+  const userCreationForm=document.querySelector('#userForm');if(userCreationForm&&userCreationForm.closest('section'))userCreationForm.closest('section').hidden=isMaster;
   document.querySelector('#auditNav').hidden=!isAdmin;
   document.querySelector('#companiesNav').hidden=!isMaster;
   document.querySelector('#equipmentNav').hidden=!isAdmin;

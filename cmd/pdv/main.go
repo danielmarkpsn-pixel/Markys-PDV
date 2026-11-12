@@ -76,6 +76,7 @@ func main() {
 	if err = migrateProductColumns(db); err != nil { log.Fatal(err) }
 	if err = migrateSaleCustomerColumn(db); err != nil { log.Fatal(err) }
 	if err = initCompanies(db); err != nil { log.Fatal(err) }
+	if err = initMasterAccount(db); err != nil { log.Fatal(err) }
 	webRoot, err := fs.Sub(assets, "web")
 	if err != nil { log.Fatal(err) }
 	a := &App{db: db, dbPath: dbPath, masterDB: db}
@@ -86,6 +87,7 @@ func main() {
 	mux.HandleFunc("/api/auth/setup", a.authSetup)
 	mux.HandleFunc("/api/auth/login", a.authLogin)
 	mux.HandleFunc("/api/auth/recover-admin", a.authRecoverAdmin)
+	mux.HandleFunc("/api/master/users", a.masterDeleteUser)
 	mux.HandleFunc("/api/auth/logout", a.authLogout)
 	mux.HandleFunc("/api/admin/companies", a.companies)
 	mux.HandleFunc("/api/admin/companies/status", a.companyStatus)

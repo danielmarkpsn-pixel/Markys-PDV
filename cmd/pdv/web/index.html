@@ -743,7 +743,7 @@ function enterApp(user){
   const userCreationForm=document.querySelector('#userForm');if(userCreationForm&&userCreationForm.closest('section'))userCreationForm.closest('section').hidden=isMaster;
   const adminRoleOption=document.querySelector('#userForm [name="role"] option[value="admin"]');if(adminRoleOption)adminRoleOption.hidden=Boolean(user.shared_mode);
   document.querySelector('#auditNav').hidden=!isAdmin;
-  document.querySelector('#companiesNav').hidden=!isMaster;
+  document.querySelector('#companiesNav').hidden=!isGlobalAdmin;
   document.querySelector('#equipmentNav').hidden=!isAdmin;
   document.querySelector('#adminLatestMovementNav').hidden=!isAdmin;
   if(isAdmin)loadEquipment();

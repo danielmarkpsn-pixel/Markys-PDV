@@ -77,7 +77,9 @@ func main() {
 	if err = migrateSaleCustomerColumn(db); err != nil { log.Fatal(err) }
 	masterPath, err := masterDatabasePath(dbPath)
 	if err != nil { log.Fatal(err) }
-	if err = os.MkdirAll(filepath.Dir(masterPath), 0750); err != nil { log.Fatal(err) }
+	masterWasProvisioned, err := masterProvisionedState(masterPath)
+	if err != nil { log.Fatal(err) }
+	if err = os.MkdirAll(filepath.Dir(masterPath), 0700); err != nil { log.Fatal(err) }
 	masterDB, err := sql.Open("sqlite", masterPath)
 	if err != nil { log.Fatal(err) }
 	defer masterDB.Close()
@@ -85,9 +87,21 @@ func main() {
 	if _, err = masterDB.Exec(`PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;`); err != nil { log.Fatal(err) }
 	if err = initCompanies(masterDB); err != nil { log.Fatal(err) }
 	if err = ensureMasterAccountTable(masterDB); err != nil { log.Fatal(err) }
+	if masterWasProvisioned {
+		var count int
+		if err = masterDB.QueryRow("SELECT COUNT(*) FROM master_accounts WHERE id=1").Scan(&count); err != nil { log.Fatal(err) }
+		if count != 1 { log.Fatal("A identidade Master provisionada está ausente ou inválida. O sistema foi bloqueado para impedir a criação de outro Master; restaure a pasta seguranca ou use a recuperação autorizada.") }
+	}
 	if err = migrateMasterMetadata(db, masterDB); err != nil { log.Fatal(err) }
 	if err = initMasterAccount(masterDB); err != nil { log.Fatal(err) }
 	if err = protectMasterDatabase(masterPath); err != nil { log.Fatalf("Não foi possível proteger o arquivo Master: %v", err) }
+	if sharedModeEnabled() {
+		var count int
+		if err = masterDB.QueryRow("SELECT COUNT(*) FROM master_accounts WHERE id=1 AND active=1").Scan(&count); err != nil { log.Fatal(err) }
+		if count == 1 {
+			if err = ensureMasterProvisionMarker(masterPath); err != nil { log.Fatalf("Não foi possível registrar a proteção permanente do Master: %v", err) }
+		}
+	}
 	webRoot, err := fs.Sub(assets, "web")
 	if err != nil { log.Fatal(err) }
 	a := &App{db: db, dbPath: dbPath, masterDB: masterDB}
@@ -396,8 +410,11 @@ func defaultDatabasePath() string {
 	if runtime.GOOS != "windows" {
 		return relative
 	}
+	// Portable Windows installations always resolve DATA beside the executable.
+	// Do not depend on the executable filename or the process working directory:
+	// both can differ when launched from a pendrive shortcut.
 	exe, err := os.Executable()
-	if err != nil || !strings.Contains(strings.ToLower(filepath.Base(exe)), "markys-pdv") {
+	if err != nil {
 		return relative
 	}
 	return filepath.Join(filepath.Dir(exe), "data", "markys-pdv.db")

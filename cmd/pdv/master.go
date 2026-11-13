@@ -29,12 +29,14 @@ func (a *App) masterStore() *sql.DB {
 	return a.db
 }
 
-// masterDatabasePath places the protected file beside (not inside) DATA.
-// PDV_MASTER_DB can override the default location for managed installations.
+// masterDatabasePath stores the permanent Master identity in a sibling
+// SEGURANCA directory, never inside DATA. Both paths are resolved from the
+// portable application root so the installation can be moved with a pendrive.
 func masterDatabasePath(dataPath string) (string, error) {
 	dataAbs, err := filepath.Abs(dataPath)
 	if err != nil { return "", err }
 	dataDir := filepath.Dir(dataAbs)
+	appRoot := filepath.Dir(dataDir)
 	if configured := strings.TrimSpace(env("PDV_MASTER_DB", "")); configured != "" {
 		masterAbs, err := filepath.Abs(configured)
 		if err != nil { return "", err }
@@ -45,8 +47,34 @@ func masterDatabasePath(dataPath string) (string, error) {
 		}
 		return masterAbs, nil
 	}
-	root := filepath.Dir(dataDir)
-	return filepath.Join(root, ".markys-master.db"), nil
+	return filepath.Join(appRoot, "seguranca", ".markys-master.db"), nil
+}
+
+// masterProvisionMarkerPath records that this installation has already had
+// its one permanent Master identity provisioned. It prevents an absent or
+// damaged Master database from silently triggering a fresh Master bootstrap.
+func masterProvisionMarkerPath(masterPath string) string {
+	return filepath.Join(filepath.Dir(masterPath), ".markys-master.provisioned")
+}
+
+func masterProvisionedState(masterPath string) (bool, error) {
+	marker := masterProvisionMarkerPath(masterPath)
+	_, markerErr := os.Stat(marker)
+	_, dbErr := os.Stat(masterPath)
+	markerExists := markerErr == nil
+	if markerErr != nil && !os.IsNotExist(markerErr) { return false, markerErr }
+	if markerExists && os.IsNotExist(dbErr) {
+		return true, errors.New("a identidade Master já foi provisionada, mas o arquivo de segurança está ausente. O sistema foi bloqueado para impedir a criação de outro Master; restaure a pasta seguranca ou use a recuperação autorizada")
+	}
+	if dbErr != nil && !os.IsNotExist(dbErr) { return markerExists, dbErr }
+	return markerExists, nil
+}
+
+func ensureMasterProvisionMarker(masterPath string) error {
+	marker := masterProvisionMarkerPath(masterPath)
+	if _, err := os.Stat(marker); err == nil { return nil } else if !os.IsNotExist(err) { return err }
+	if err := os.WriteFile(marker, []byte("MARKYS MASTER PROVISIONED v1\n"), 0600); err != nil { return err }
+	return protectMasterDatabase(marker)
 }
 
 func ensureMasterAccountTable(db *sql.DB) error {
@@ -100,14 +128,22 @@ func migrateMasterMetadata(dataDB, masterDB *sql.DB) error {
 	return nil
 }
 
-// protectMasterDatabase hides the Master file and restricts its Windows ACL to
-// the current owner, SYSTEM and local Administrators. DATA is never modified.
+// protectMasterDatabase hides the security file and restricts access to the
+// current Windows account, SYSTEM and local Administrators. DATA is untouched.
+// This is OS-level hardening against ordinary access, not protection against a
+// person who controls the same Windows administrator account.
 func protectMasterDatabase(path string) error {
-	if runtime.GOOS != "windows" { return os.Chmod(path, 0600) }
+	dir := filepath.Dir(path)
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(dir, 0700); err != nil { return err }
+		return os.Chmod(path, 0600)
+	}
 	who, err := exec.Command("whoami").Output()
 	if err != nil { return err }
 	account := strings.TrimSpace(string(who))
 	if account == "" { return errors.New("não foi possível identificar o usuário do Windows") }
+	dirACL := exec.Command("icacls", dir, "/inheritance:r", "/grant:r", account+":(OI)(CI)(F)", "*S-1-5-18:(OI)(CI)(F)", "*S-1-5-32-544:(OI)(CI)(F)")
+	if output, err := dirACL.CombinedOutput(); err != nil { return errors.New(strings.TrimSpace(string(output))) }
 	acl := exec.Command("icacls", path, "/inheritance:r", "/grant:r", account+":(F)", "*S-1-5-18:(F)", "*S-1-5-32-544:(F)")
 	if output, err := acl.CombinedOutput(); err != nil { return errors.New(strings.TrimSpace(string(output))) }
 	hide := exec.Command("attrib", "+h", "+s", path)

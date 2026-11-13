@@ -13,7 +13,7 @@ func TestMasterDatabasePathIsOutsideData(t *testing.T) {
 	dataPath := filepath.Join(t.TempDir(), "data", "markys-pdv.db")
 	path, err := masterDatabasePath(dataPath)
 	if err != nil { t.Fatal(err) }
-	want := filepath.Join(filepath.Dir(filepath.Dir(dataPath)), ".markys-master.db")
+	want := filepath.Join(filepath.Dir(filepath.Dir(dataPath)), "seguranca", ".markys-master.db")
 	if path != want { t.Fatalf("master path = %q, want %q", path, want) }
 	if filepath.Dir(path) == filepath.Dir(dataPath) { t.Fatalf("Master file must not be inside DATA: %q", path) }
 }
@@ -30,7 +30,9 @@ func TestMasterMetadataMovesOutOfDataWithoutMovingOperationalRows(t *testing.T) 
 	data, err := sql.Open("sqlite", filepath.Join(dir, "data", "markys-pdv.db"))
 	if err != nil { t.Fatal(err) }
 	defer data.Close()
-	master, err := sql.Open("sqlite", filepath.Join(dir, ".markys-master.db"))
+	masterPath := filepath.Join(dir, "seguranca", ".markys-master.db")
+	if err := os.MkdirAll(filepath.Dir(masterPath), 0700); err != nil { t.Fatal(err) }
+	master, err := sql.Open("sqlite", masterPath)
 	if err != nil { t.Fatal(err) }
 	defer master.Close()
 	for _, db := range []*sql.DB{data, master} { db.SetMaxOpenConns(1) }

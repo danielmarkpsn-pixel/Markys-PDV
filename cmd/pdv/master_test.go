@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -55,4 +57,35 @@ func TestMasterRecoveryRejectsRemoteRequests(t *testing.T) {
 	rec := httptest.NewRecorder()
 	app.authRecoverMaster(rec, req)
 	if rec.Code != http.StatusForbidden { t.Fatalf("expected remote recovery to be forbidden, got %d", rec.Code) }
+}
+
+
+func TestMasterSecurityDirectorySurvivesDataDeletion(t *testing.T) {
+	t.Setenv("PDV_MASTER_DB", "")
+	root := t.TempDir()
+	dataDir := filepath.Join(root, "MARKYS-PDV", "data")
+	if err := os.MkdirAll(dataDir, 0700); err != nil { t.Fatal(err) }
+	dataPath := filepath.Join(dataDir, "markys-pdv.db")
+	masterPath, err := masterDatabasePath(dataPath)
+	if err != nil { t.Fatal(err) }
+	want := filepath.Join(root, "MARKYS-PDV", "seguranca", ".markys-master.db")
+	if masterPath != want { t.Fatalf("Master database path = %q, want %q", masterPath, want) }
+	if err := os.MkdirAll(filepath.Dir(masterPath), 0700); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(masterPath, []byte("master identity"), 0600); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(masterProvisionMarkerPath(masterPath), []byte("provisioned"), 0600); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(dataPath, []byte("operational data"), 0600); err != nil { t.Fatal(err) }
+
+	if err := os.RemoveAll(dataDir); err != nil { t.Fatal(err) }
+	if _, err := os.Stat(masterPath); err != nil { t.Fatalf("Master identity was removed with DATA: %v", err) }
+	if _, err := os.Stat(masterProvisionMarkerPath(masterPath)); err != nil { t.Fatalf("Master provisioning marker was removed with DATA: %v", err) }
+}
+
+func TestMissingProvisionedMasterDatabaseBlocksRebootstrap(t *testing.T) {
+	root := t.TempDir()
+	securityDir := filepath.Join(root, "seguranca")
+	if err := os.MkdirAll(securityDir, 0700); err != nil { t.Fatal(err) }
+	masterPath := filepath.Join(securityDir, ".markys-master.db")
+	if err := os.WriteFile(masterProvisionMarkerPath(masterPath), []byte("provisioned"), 0600); err != nil { t.Fatal(err) }
+	provisioned, err := masterProvisionedState(masterPath)
+	if err == nil || !provisioned { t.Fatal("missing provisioned Master database must block startup and rebootstrap") }
 }

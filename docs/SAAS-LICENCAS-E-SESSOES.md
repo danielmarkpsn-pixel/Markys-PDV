@@ -31,7 +31,7 @@ A verificação de vagas precisa ser transacional. O serviço inicia uma transa�
 
 - O tenant_id vem da sessão autenticada no servidor; nunca é aceito como autoridade a partir do corpo, query string ou cabeçalho enviado pelo navegador.
 - Cada transação operacional define o contexto com set_config('app.tenant_id', tenant_id, true) e executa as consultas dentro dessa transação.
-- As tabelas de usuários, sessões e auditoria usam RLS com FORCE ROW LEVEL SECURITY.
+- As tabelas de sessões e auditoria usam RLS com FORCE ROW LEVEL SECURITY. A tabela de usuários usa RLS sem FORCE para permitir que a função SECURITY DEFINER da trigger de limite conte usuários; por isso, a role de runtime deve obrigatoriamente ser separada da proprietária das tabelas, sem SUPERUSER e sem BYPASSRLS.
 - A conexão da aplicação não deve ser superuser nem possuir BYPASSRLS.
 - Administração da plataforma e administração da empresa são identidades e permissões separadas.
 - Aumentos de vagas, alterações de assinatura, suspensão e retomada devem gerar eventos de auditoria.
@@ -62,4 +62,4 @@ Os caminhos são uma especificação inicial; devem ser harmonizados com o rotea
 
 ## Estado desta entrega
 
-A migration PostgreSQL cria a base estrutural de tenants, planos, assinaturas, usuários, sessões, auditoria, limite de vagas e políticas RLS. Ela ainda não está conectada ao executável Go: o runtime atual desta branch continua baseado em SQLite e sessões em memória. Não publicar como SaaS nem aplicar esta migration em banco de produção até concluir o driver PostgreSQL, o serviço de autenticação persistente, o contexto RLS e os testes de integração.
+A branch agora contém o driver PostgreSQL isolado, configuração explícita de conexão, executor controlado e idempotente de migrations, contexto RLS transacional e serviço de criação/validação/revogação de sessões persistentes. O serviço substitui a sessão anterior do mesmo usuário na mesma transação e armazena somente SHA-256 do token. Os testes de CI verificam a migration via Go, limite de vagas, sessão única e isolamento RLS com role sem SUPERUSER/BYPASSRLS. Ainda não há integração dessas rotinas com as rotas HTTP e o fluxo de login do PDV; o runtime comercial segue SQLite. Não publicar como SaaS nem conectar banco de produção até concluir autenticação por senha, autorização, camada de dados multi-tenant e integração das rotas.

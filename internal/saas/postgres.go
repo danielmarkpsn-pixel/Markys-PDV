@@ -5,7 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 )
 
 // OpenPostgres opens and verifies the SaaS PostgreSQL connection.
@@ -14,8 +15,12 @@ func OpenPostgres(ctx context.Context, cfg Config) (*sql.DB, error) {
 	if cfg.Mode != "postgres" || cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("configuração PostgreSQL SaaS incompleta")
 	}
-	db, err := sql.Open("pgx", cfg.DatabaseURL)
-	if err != nil { return nil, fmt.Errorf("abrir conexão PostgreSQL: %w", err) }
+	pgxCfg, err := pgx.ParseConfig(cfg.DatabaseURL)
+	if err != nil { return nil, fmt.Errorf("interpretar DATABASE_URL: %w", err) }
+	// Migrations contain multiple SQL statements and PL/pgSQL blocks.
+	// Simple protocol is required for executing these scripts as a whole.
+	pgxCfg.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+	db := stdlib.OpenDB(*pgxCfg)
 	db.SetMaxOpenConns(cfg.MaxOpenConns)
 	db.SetMaxIdleConns(cfg.MaxIdleConns)
 	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
@@ -44,4 +49,3 @@ func WithTenantTx(ctx context.Context, db *sql.DB, tenantID string, opts *sql.Tx
 	if err := tx.Commit(); err != nil { return fmt.Errorf("confirmar transação do tenant: %w", err) }
 	return nil
 }
-

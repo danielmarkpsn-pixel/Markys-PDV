@@ -2,12 +2,15 @@ package saas
 
 import (
 	"database/sql"
+	"errors"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
+
+var errInsufficientStock = errors.New("insufficient stock")
 
 type InventoryHandler struct {
 	DB *sql.DB

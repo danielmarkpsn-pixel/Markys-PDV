@@ -20,9 +20,9 @@ CREATE TABLE IF NOT EXISTS tenant_categories (
     name text NOT NULL,
     active boolean NOT NULL DEFAULT true,
     created_at timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (tenant_id, id),
-    UNIQUE (tenant_id, lower(name))
+    UNIQUE (tenant_id, id)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tenant_categories_name ON tenant_categories(tenant_id, lower(name));
 
 CREATE TABLE IF NOT EXISTS tenant_suppliers (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

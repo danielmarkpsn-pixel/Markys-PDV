@@ -8,7 +8,7 @@ Esta camada é exclusiva do executável `cmd/pdv-saas` e do PostgreSQL. Não alt
 - `GET /api/auth/status`: verifica sessão e situação do usuário/empresa/assinatura.
 - `POST /api/auth/logout`: revoga a sessão atual.
 - O login novo revoga a sessão anterior do mesmo usuário.
-- O login recebe limite inicial de 10 requisições por IP em 5 minutos. O limite é por instância e não substitui proteção distribuída no gateway.
+- O login recebe limite inicial de 30 requisições por IP em 5 minutos. O limite é por instância e não substitui proteção distribuída no gateway.
 
 ## Administração da empresa
 

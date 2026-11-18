@@ -45,6 +45,8 @@ jobs:
         with:
           go-version: "1.23.x"
           cache: true
+      - name: Resolve Go dependencies and generate checksums
+        run: go mod tidy
       - name: Run isolated SaaS configuration tests
         run: go test ./internal/saas -v
       - name: Install PostgreSQL client

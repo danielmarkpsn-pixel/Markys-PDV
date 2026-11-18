@@ -93,3 +93,15 @@ A interface usa os endpoints descritos neste documento e mantém o login em cook
 - A soma de `amount_cents` precisa corresponder exatamente ao total da venda.
 - O caixa soma somente o dinheiro líquido aplicado à venda, sem contar o valor devolvido como troco.
 - A migração `0006_payment_tender_change.sql` registra `received_cents` e `change_cents`.
+
+
+## Cancelamento e estorno integral de vendas
+
+- `POST /api/pos/sales/{id}/refund` exige sessão e perfil `owner`, `admin` ou `manager`.
+- O corpo exige `reason` com motivo de 5 a 500 caracteres. O estorno é integral nesta etapa; não há estorno parcial.
+- A operação bloqueia a venda com `FOR UPDATE`, exige status `completed` e impede segundo estorno por restrição única no banco.
+- Pagamentos são estornados pelos valores efetivamente aplicados à venda e pelos mesmos meios originais. O troco entregue na venda não é somado ao valor do reembolso.
+- O estoque é recomposto usando as movimentações vinculadas à venda; para produtos com lote, a quantidade retorna exatamente aos lotes consumidos.
+- Venda, estoque, lotes, pagamentos de estorno e auditoria são alterados na mesma transação. Qualquer falha reverte a operação inteira.
+- Vendas antigas sem vínculo de movimentação de estoque criado pela migração `0007_sale_refunds.sql` são recusadas com segurança; não se tenta adivinhar o lote ou saldo original.
+- A conciliação do caixa desconta pagamentos em dinheiro estornados, inclusive após fechamento ainda não é permitido pelo fluxo de estorno atual? Estorno de venda vinculada a caixa fechado é registrado e o saldo do caixa já fechado não é reaberto automaticamente; para correções após fechamento, registrar ajuste/sangria conforme procedimento administrativo.

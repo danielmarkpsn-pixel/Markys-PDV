@@ -83,3 +83,10 @@ Configure `SAAS_MODE=postgres`, `DATABASE_URL`, `SAAS_COOKIE_SECURE=true` em pro
 ### Limite atual
 
 Esta entrega disponibiliza a API de autenticação, mas ainda não conecta os módulos comerciais (produtos, estoque, clientes, vendas, caixa e relatórios) ao PostgreSQL. O executável SaaS ainda não entrega a interface web do PDV nem deve ser publicado como sistema comercial completo. A versão desktop e seu executável SQLite permanecem separados. Antes de produção, também será necessário aplicar rate limit no login, configurar a role PostgreSQL de runtime sem privilégios de proprietário/BYPASSRLS e completar testes HTTP integrados com banco.
+
+
+## Primeira camada comercial multiempresa
+
+A migration `0002_tenant_commercial_data.sql` cria a primeira estrutura PostgreSQL dos módulos comerciais: configurações da loja, categorias, fornecedores, produtos, lotes, clientes, sessões de caixa, vendas, itens de venda, pagamentos, movimentações de estoque, equipamentos e documentos fiscais. Todas as tabelas operacionais recebem `tenant_id`, chaves estrangeiras compostas para impedir vínculos entre empresas e RLS com `FORCE ROW LEVEL SECURITY`. O teste `0003_tenant_commercial_data_test.sql` valida leitura isolada e bloqueio de escrita cruzada com uma role sem privilégios de superusuário ou bypass RLS.
+
+Essa migration estabelece o modelo do banco, mas os repositórios e endpoints dos módulos ainda precisam ser implementados em cima dele; não significa que o PDV comercial já esteja conectado ao PostgreSQL.

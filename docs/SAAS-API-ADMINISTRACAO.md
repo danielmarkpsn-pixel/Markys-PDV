@@ -26,8 +26,8 @@ O número de logins contratados é somente leitura para o administrador da empre
 - As operações de leitura/escrita de usuários usam transação com `app.tenant_id` para respeitar RLS.
 - A identidade do tenant vem da sessão validada, nunca de parâmetro enviado pelo navegador.
 - O limite de tentativas atual é local à instância e cobre somente login da empresa, login da plataforma e bootstrap inicial (30 tentativas por IP em 5 minutos); as demais rotas não consomem esse limite. Para múltiplas instâncias, mover a contagem para Redis/gateway.
-- Ainda falta autenticação e API do administrador da plataforma para provisionar empresas, criar o primeiro proprietário, ativar contratos e alterar `seat_limit`.
-- Ainda faltam testes HTTP de integração contra PostgreSQL para fluxo completo de login, criação de usuários, limite concorrente e substituição de sessão.
+- O console e a API do administrador da plataforma já provisionam empresas, planos e limites; ainda faltam MFA, auditoria global dedicada e recuperação segura de acesso.
+- Os testes de integração HTTP cobrem administração de usuários e estoque; ainda faltam cenários de concorrência em venda/caixa, cobrança e restauração de backup.
 - Os módulos de PDV e a interface web ainda não foram conectados a esta API.
 - Não publicar em produção antes de completar os itens acima e configurar HTTPS, origem confiável/proxy, segredo de sessão e credenciais PostgreSQL.
 
@@ -63,10 +63,10 @@ Os três recursos abaixo exigem sessão válida. Consultas são permitidas a usu
 
 As APIs já estão conectadas ao serviço Go SaaS, mas ainda não estão conectadas à interface visual do PDV. Também faltam testes específicos de permissões por perfil e operações de estoque/lotes/validade.
 
-## Interface web inicial
+## Estoque e movimentações (API)\n\n- `GET /api/inventory/stock`: posição de estoque, com pesquisa opcional `?q=`.\n- `GET /api/inventory/movements?limit=100`: histórico recente, limite de 1 a 500.\n- `POST /api/inventory/adjustments`: registra `entry`, `exit` ou `count`; quantidade aceita até três casas decimais.\n- Entradas e saídas atualizam o saldo e geram trilha em `tenant_stock_movements`; saídas que excedem o saldo são recusadas.\n- Para produtos com controle de lote, entrada/saída exige `lot_code`; se também houver controle de validade, a entrada exige `expires_on`. Saída valida saldo do lote. Contagem direta é bloqueada para produto controlado por lote.\n- Ajustes são permitidos a `owner`, `admin`, `manager` e `stockkeeper`; consulta exige sessão. Todas as operações são transacionais e isoladas por tenant.\n- A migração `0003_inventory_integrity.sql` impede configurar validade sem controle de lote.\n\nA interface web da empresa inclui a tela Estoque para posição, entradas, saídas, inventário e histórico.\n\n## Interface web inicial
 
 O executável `cmd/pdv-saas` agora serve os arquivos estáticos embutidos em `cmd/pdv-saas/web`:
 - `/`: login da empresa e área inicial com produtos, categorias, fornecedores, usuários e consulta de licença.
 - `/plataforma.html`: console do administrador global para bootstrap inicial, planos e provisionamento/gestão de empresas.
 
-A interface usa os endpoints descritos neste documento e mantém o login em cookies HttpOnly. O fluxo visual de venda/PDV, caixa, estoque/movimentações, clientes, compras, fiscal e integrações ainda não foi conectado. Portanto, esta entrega é a primeira interface de acesso e cadastros SaaS, não uma versão completa pronta para operação comercial.
+A interface usa os endpoints descritos neste documento e mantém o login em cookies HttpOnly. O fluxo visual de venda/PDV, caixa, clientes, compras, fiscal e integrações ainda não foi conectado. Portanto, esta entrega é a primeira interface de acesso e cadastros SaaS, não uma versão completa pronta para operação comercial.

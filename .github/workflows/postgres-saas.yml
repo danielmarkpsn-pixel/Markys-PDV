@@ -1,0 +1,45 @@
+name: MARKYS PDV PostgreSQL SaaS foundation
+on:
+  push:
+    branches: [feature/markys-pdv-online]
+    paths:
+      - "migrations/postgres/**"
+      - ".github/workflows/postgres-saas.yml"
+  pull_request:
+    paths:
+      - "migrations/postgres/**"
+      - ".github/workflows/postgres-saas.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-foundation:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: markys_test
+          POSTGRES_PASSWORD: markys_test_password
+          POSTGRES_DB: markys_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U markys_test -d markys_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgres://markys_test:markys_test_password@localhost:5432/markys_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Apply SaaS foundation migration
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/0001_saas_access_foundation.sql
+      - name: Verify license seats and single-session constraints
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/tests/0001_saas_access_foundation_test.sql

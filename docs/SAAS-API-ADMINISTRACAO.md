@@ -82,3 +82,14 @@ A interface usa os endpoints descritos neste documento e mantém o login em cook
 - O PDV permite associar um cliente ativo à venda; cliente inativo não pode ser usado em nova venda. Consumidor final continua disponível sem cadastro.
 - A migração `0005_customer_lifecycle.sql` adiciona situação e data de atualização e índice de pesquisa.
 - A tela `/customers.html` oferece cadastro, pesquisa, edição e inativação.
+
+
+## Pagamentos divididos e troco
+
+- A venda aceita até 10 parcelas de pagamento em diferentes meios (dinheiro, PIX, débito, crédito, voucher ou outro).
+- `amount_cents` representa o valor efetivamente destinado à quitação da venda.
+- Para dinheiro, `received_cents` representa o valor entregue pelo cliente e pode ser maior que `amount_cents`; a diferença é registrada como troco.
+- Para meios não monetários, o valor recebido deve ser igual ao valor aplicado.
+- A soma de `amount_cents` precisa corresponder exatamente ao total da venda.
+- O caixa soma somente o dinheiro líquido aplicado à venda, sem contar o valor devolvido como troco.
+- A migração `0006_payment_tender_change.sql` registra `received_cents` e `change_cents`.

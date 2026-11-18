@@ -65,6 +65,8 @@ jobs:
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/0005_customer_lifecycle.sql
       - name: Apply payment tender and change migration
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/0006_payment_tender_change.sql
+      - name: Apply sale refunds migration
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/0007_sale_refunds.sql
       - name: Verify license seats and single-session constraints
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/tests/0001_saas_access_foundation_test.sql
       - name: Verify tenant row-level security isolation

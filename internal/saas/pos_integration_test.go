@@ -42,11 +42,25 @@ func TestPOSCashAndSaleHTTPIntegration(t *testing.T) {
 	tooMuch:=fmt.Sprintf(`{"cash_session_id":%q,"items":[{"product_id":%q,"quantity":9}],"payments":[{"method":"cash","amount_cents":22500}]}`,openResult.ID,productID)
 	rejected:=request(http.MethodPost,"/api/pos/sales",tooMuch)
 	if rejected.Code!=http.StatusConflict{t.Fatalf("venda acima do estoque deveria ser recusada: %d %s",rejected.Code,rejected.Body.String())}
+
+	var lotProductID,lotEarlyID,lotLateID string
+	if err:=db.QueryRowContext(ctx,"INSERT INTO tenant_products(tenant_id,code,name,price_cents,stock,track_lot,track_expiry) VALUES($1::uuid,'POS-LOT','Produto por lote',1000,6,true,true) RETURNING id::text",tenantID).Scan(&lotProductID);err!=nil{t.Fatal(err)}
+	early:=time.Now().AddDate(0,0,30).Format("2006-01-02")
+	late:=time.Now().AddDate(0,0,60).Format("2006-01-02")
+	if err:=db.QueryRowContext(ctx,"INSERT INTO tenant_product_lots(tenant_id,product_id,lot_code,expires_on,quantity) VALUES($1::uuid,$2::uuid,'LOTE-FEFO-1',$3,3) RETURNING id::text",tenantID,lotProductID,early).Scan(&lotEarlyID);err!=nil{t.Fatal(err)}
+	if err:=db.QueryRowContext(ctx,"INSERT INTO tenant_product_lots(tenant_id,product_id,lot_code,expires_on,quantity) VALUES($1::uuid,$2::uuid,'LOTE-FEFO-2',$3,3) RETURNING id::text",tenantID,lotProductID,late).Scan(&lotLateID);err!=nil{t.Fatal(err)}
+	lotSaleBody:=fmt.Sprintf(`{"cash_session_id":%q,"items":[{"product_id":%q,"quantity":4}],"payments":[{"method":"cash","amount_cents":4000}]}`,openResult.ID,lotProductID)
+	lotSale:=request(http.MethodPost,"/api/pos/sales",lotSaleBody)
+	if lotSale.Code!=http.StatusCreated{t.Fatalf("venda por lote FEFO: status=%d body=%s",lotSale.Code,lotSale.Body.String())}
+	var earlyQty,lateQty float64
+	if err:=db.QueryRowContext(ctx,"SELECT quantity FROM tenant_product_lots WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,lotEarlyID).Scan(&earlyQty);err!=nil{t.Fatal(err)}
+	if err:=db.QueryRowContext(ctx,"SELECT quantity FROM tenant_product_lots WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,lotLateID).Scan(&lateQty);err!=nil{t.Fatal(err)}
+	if earlyQty!=0||lateQty!=2{t.Fatalf("baixa FEFO esperava lote próximo=0 e lote seguinte=2; recebeu %v e %v",earlyQty,lateQty)}
 	var stock float64
 	if err:=db.QueryRowContext(ctx,"SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,productID).Scan(&stock);err!=nil{t.Fatal(err)}
 	if stock!=8{t.Fatalf("estoque esperado 8 após venda, recebido %v",stock)}
-	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":5900}`,openResult.ID))
-	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":6000`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento: status=%d body=%s",closed.Code,closed.Body.String())}
+	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":9900}`,openResult.ID))
+	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":10000`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento: status=%d body=%s",closed.Code,closed.Body.String())}
 	list:=request(http.MethodGet,"/api/pos/sales?limit=20","")
 	if list.Code!=http.StatusOK||!strings.Contains(list.Body.String(),"sale_number"){t.Fatalf("listagem de vendas: status=%d body=%s",list.Code,list.Body.String())}
 }

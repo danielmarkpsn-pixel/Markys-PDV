@@ -1,7 +1,7 @@
 name: Build MARKYS PDV Windows
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, feature/markys-pdv-online]
   pull_request:
   workflow_dispatch:
 permissions:

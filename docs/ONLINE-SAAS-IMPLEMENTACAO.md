@@ -148,3 +148,10 @@ Esta etapa ainda precisa passar pela execução do CI PostgreSQL e Windows antes
 ## Atualização — pagamentos divididos e troco
 
 O PDV agora permite distribuir o total entre até 10 meios de pagamento. No dinheiro, o operador informa o valor recebido e o sistema calcula e registra o troco. A conciliação do caixa contabiliza o valor líquido aplicado à venda, evitando que o troco seja tratado como entrada de caixa. A migração `0006_payment_tender_change.sql` e o teste de integração correspondente foram adicionados. A execução real do CI continua pendente devido à falha do runner antes de iniciar qualquer etapa.
+
+
+## Atualização — estorno integral e devolução ao estoque
+
+Foi implementado o endpoint `POST /api/pos/sales/{id}/refund` para `owner`, `admin` e `manager`, com motivo obrigatório, bloqueio de duplicidade e auditoria. A operação recompõe estoque e lotes com base nas movimentações originais vinculadas à venda, replica o estorno por meio de pagamento e ajusta a conciliação do caixa pelo valor líquido efetivamente aplicado (sem incluir o troco originalmente devolvido). A migração `0007_sale_refunds.sql` cria o registro de estornos e o vínculo das movimentações à venda. Vendas anteriores sem rastreabilidade completa não são estornadas automaticamente.
+
+A interface do PDV mostra a ação ESTORNAR apenas para perfis autorizados e vendas concluídas, solicitando motivo e confirmação. Foi acrescentado teste de integração para estorno, duplicidade, reposição de estoque e conciliação. A execução efetiva do CI PostgreSQL ainda precisa ser confirmada; não considerar o módulo validado até os testes executarem com sucesso.

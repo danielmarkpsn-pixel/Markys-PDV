@@ -63,7 +63,7 @@ jobs:
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/0004_cash_register_integrity.sql
       - name: Apply customer lifecycle migration
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/0005_customer_lifecycle.sql
-      - name: Verify license seats and single-session constraints
+      - name: Apply payment tender and change migration\n        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/0006_payment_tender_change.sql\n      - name: Verify license seats and single-session constraints
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/tests/0001_saas_access_foundation_test.sql
       - name: Verify tenant row-level security isolation
         run: |

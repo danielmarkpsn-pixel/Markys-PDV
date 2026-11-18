@@ -6,7 +6,6 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"encoding/base64"
-	"errors"
 	"net"
 	"net/http"
 	"regexp"
@@ -85,13 +84,10 @@ func (h *PlatformAdminHandler) requireSession(next http.Handler) http.Handler {
 		digest:=sha256.Sum256([]byte(cookie.Value)); var id,name string
 		err=h.DB.QueryRowContext(r.Context(),"SELECT a.id::text,a.display_name FROM platform_admin_sessions s JOIN platform_admins a ON a.id=s.admin_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND a.active=true",digest[:]).Scan(&id,&name)
 		if err!=nil { clearPlatformCookie(w,h.CookieSecure); writeJSON(w,401,map[string]string{"error":"Sessão de plataforma inválida ou expirada"}); return }
-		next.ServeHTTP(w,r.WithContext(withPlatformIdentity(r,id,name)))
+		next.ServeHTTP(w,r)
 	})
 }
 
-type platformIdentityKey struct{}
-type platformIdentity struct { ID string; Name string }
-func withPlatformIdentity(r *http.Request,id,name string) interface{ Done() <-chan struct{} } { return r.Context() }
 
 func (h *PlatformAdminHandler) status(w http.ResponseWriter,r *http.Request) {
 	if r.Method!=http.MethodGet { w.Header().Set("Allow",http.MethodGet); writeJSON(w,405,map[string]string{"error":"Método não permitido"}); return }
@@ -171,4 +167,3 @@ func (h *PlatformAdminHandler) tenantByID(w http.ResponseWriter,r *http.Request)
 func clearPlatformCookie(w http.ResponseWriter,secure bool) { http.SetCookie(w,&http.Cookie{Name:platformSessionCookie,Value:"",Path:"/",HttpOnly:true,Secure:secure,SameSite:http.SameSiteStrictMode,MaxAge:-1,Expires:time.Unix(1,0)}) }
 func platformRemoteIP(r *http.Request) any { host,_,err:=net.SplitHostPort(strings.TrimSpace(r.RemoteAddr)); if err!=nil||host=="" { return nil }; return host }
 
-var _ = errors.Is

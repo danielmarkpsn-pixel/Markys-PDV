@@ -12,6 +12,9 @@ on:
     paths:
       - "migrations/postgres/**"
       - ".github/workflows/postgres-saas.yml"
+      - "internal/saas/**"
+      - "go.mod"
+      - "go.sum"
   workflow_dispatch:
 
 permissions:

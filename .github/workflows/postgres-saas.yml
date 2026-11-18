@@ -5,6 +5,9 @@ on:
     paths:
       - "migrations/postgres/**"
       - ".github/workflows/postgres-saas.yml"
+      - "internal/saas/**"
+      - "go.mod"
+      - "go.sum"
   pull_request:
     paths:
       - "migrations/postgres/**"
@@ -35,6 +38,12 @@ jobs:
       DATABASE_URL: postgres://markys_test:markys_test_password@localhost:5432/markys_test?sslmode=disable
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+          cache: true
+      - name: Run isolated SaaS configuration tests
+        run: go test ./internal/saas -v
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update

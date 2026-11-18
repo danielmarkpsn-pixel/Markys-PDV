@@ -169,7 +169,9 @@ EXECUTE FUNCTION enforce_tenant_user_seat_limit();
 -- beginning each tenant-scoped transaction:
 -- SELECT set_config('app.tenant_id', '<authenticated-tenant-uuid>', true);
 ALTER TABLE tenant_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tenant_users FORCE ROW LEVEL SECURITY;
+-- Keep the table owner able to run the SECURITY DEFINER seat-limit trigger.
+-- The runtime role must be a separate non-owner, non-BYPASSRLS role.
+ALTER TABLE tenant_users NO FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_users_isolation ON tenant_users;
 CREATE POLICY tenant_users_isolation ON tenant_users
     USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)

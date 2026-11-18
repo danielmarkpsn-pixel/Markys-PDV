@@ -166,18 +166,17 @@ func (h *InventoryHandler) adjust(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if _,err=tx.ExecContext(r.Context(),`UPDATE tenant_products SET stock=GREATEST(0,stock+$3),updated_at=now() WHERE tenant_id=$1::uuid AND id=$2::uuid`,id.TenantID,in.ProductID,delta);err!=nil{return err}
+		if err=tx.QueryRowContext(r.Context(),"SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid",id.TenantID,in.ProductID).Scan(&newStock);err!=nil{return err}
 		refType:="";if lotID!=nil{refType="lot"}
 		return tx.QueryRowContext(r.Context(),`INSERT INTO tenant_stock_movements(tenant_id,product_id,movement_type,quantity,reference_type,reference_id,user_id,note)
 			VALUES($1::uuid,$2::uuid,$3,$4,$5,NULLIF($6,'')::uuid,$7::uuid,$8) RETURNING id::text`,
 			id.TenantID,in.ProductID,in.MovementType,delta,refType,lotID,id.UserID,in.Note).Scan(&newID)
 	})
 	if err!=nil{
-		if err==sql.ErrNoRows{writeJSON(w,404,map[string]string{"error":"Produto não encontrado ou inativo"});return}
+		if err==sql.ErrNoRows{writeJSON(w,404,map[string]string{"error":"Produto ou lote não encontrado"});return}
 		if err==errInsufficientStock{writeJSON(w,409,map[string]string{"error":"Estoque insuficiente para esta saída"});return}
 		if err==errInvalidUserInput{writeJSON(w,400,map[string]string{"error":"Este produto exige controle por lote. Informe lote e validade, ou faça a movimentação por lote."});return}
 		writeJSON(w,409,map[string]string{"error":"Não foi possível registrar a movimentação; confira produto e lote"});return
 	}
-	err=WithTenantTx(r.Context(),h.DB,id.TenantID,nil,func(tx *sql.Tx)error{return tx.QueryRowContext(r.Context(),"SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid",id.TenantID,in.ProductID).Scan(&newStock)})
-	if err!=nil{writeJSON(w,500,map[string]string{"error":"Movimentação registrada, mas não foi possível atualizar a resposta"});return}
 	writeJSON(w,201,map[string]any{"id":newID,"stock":newStock})
 }

@@ -48,8 +48,12 @@ func(h *CatalogHandler)item(resource string,w http.ResponseWriter,r *http.Reques
 
 type catalogCategory struct{ID string `json:"id"`;Name string `json:"name"`;Active bool `json:"active"`;CreatedAt time.Time `json:"created_at"`}
 func(h *CatalogHandler)listCategories(w http.ResponseWriter,r *http.Request,id SessionIdentity){
-	rows,err:=h.DB.QueryContext(r.Context(),"SELECT id::text,name,active,created_at FROM tenant_categories WHERE tenant_id=$1::uuid ORDER BY lower(name)",id.TenantID);if err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível listar categorias"});return};defer rows.Close()
-	items:=[]catalogCategory{};for rows.Next(){var x catalogCategory;if rows.Scan(&x.ID,&x.Name,&x.Active,&x.CreatedAt)!=nil{writeJSON(w,500,map[string]string{"error":"Falha ao ler categorias"});return};items=append(items,x)};if rows.Err()!=nil{writeJSON(w,500,map[string]string{"error":"Falha ao ler categorias"});return};writeJSON(w,200,map[string]any{"categories":items})
+	items:=[]catalogCategory{}
+	err:=WithTenantTx(r.Context(),h.DB,id.TenantID,nil,func(tx *sql.Tx)error{
+		rows,err:=tx.QueryContext(r.Context(),"SELECT id::text,name,active,created_at FROM tenant_categories WHERE tenant_id=$1::uuid ORDER BY lower(name)",id.TenantID);if err!=nil{return err};defer rows.Close()
+		for rows.Next(){var x catalogCategory;if err:=rows.Scan(&x.ID,&x.Name,&x.Active,&x.CreatedAt);err!=nil{return err};items=append(items,x)};return rows.Err()
+	})
+	if err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível listar categorias"});return};writeJSON(w,200,map[string]any{"categories":items})
 }
 func(h *CatalogHandler)createCategory(w http.ResponseWriter,r *http.Request,id SessionIdentity){
 	var in struct{Name string `json:"name"`};if !decodeAuthJSON(w,r,&in){return};in.Name=strings.TrimSpace(in.Name);if in.Name==""||len(in.Name)>120{writeJSON(w,400,map[string]string{"error":"Nome da categoria obrigatório (máximo 120 caracteres)"});return}
@@ -64,8 +68,12 @@ func(h *CatalogHandler)updateCategory(w http.ResponseWriter,r *http.Request,id S
 
 type catalogSupplier struct{ID string `json:"id"`;Name string `json:"name"`;Document string `json:"document"`;Phone string `json:"phone"`;Email string `json:"email"`;Active bool `json:"active"`;CreatedAt time.Time `json:"created_at"`}
 func(h *CatalogHandler)listSuppliers(w http.ResponseWriter,r *http.Request,id SessionIdentity){
-	rows,err:=h.DB.QueryContext(r.Context(),"SELECT id::text,name,document,phone,email,active,created_at FROM tenant_suppliers WHERE tenant_id=$1::uuid ORDER BY lower(name)",id.TenantID);if err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível listar fornecedores"});return};defer rows.Close()
-	items:=[]catalogSupplier{};for rows.Next(){var x catalogSupplier;if rows.Scan(&x.ID,&x.Name,&x.Document,&x.Phone,&x.Email,&x.Active,&x.CreatedAt)!=nil{writeJSON(w,500,map[string]string{"error":"Falha ao ler fornecedores"});return};items=append(items,x)};if rows.Err()!=nil{writeJSON(w,500,map[string]string{"error":"Falha ao ler fornecedores"});return};writeJSON(w,200,map[string]any{"suppliers":items})
+	items:=[]catalogSupplier{}
+	err:=WithTenantTx(r.Context(),h.DB,id.TenantID,nil,func(tx *sql.Tx)error{
+		rows,err:=tx.QueryContext(r.Context(),"SELECT id::text,name,document,phone,email,active,created_at FROM tenant_suppliers WHERE tenant_id=$1::uuid ORDER BY lower(name)",id.TenantID);if err!=nil{return err};defer rows.Close()
+		for rows.Next(){var x catalogSupplier;if err:=rows.Scan(&x.ID,&x.Name,&x.Document,&x.Phone,&x.Email,&x.Active,&x.CreatedAt);err!=nil{return err};items=append(items,x)};return rows.Err()
+	})
+	if err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível listar fornecedores"});return};writeJSON(w,200,map[string]any{"suppliers":items})
 }
 func(h *CatalogHandler)createSupplier(w http.ResponseWriter,r *http.Request,id SessionIdentity){
 	var in struct{Name string `json:"name"`;Document string `json:"document"`;Phone string `json:"phone"`;Email string `json:"email"`};if !decodeAuthJSON(w,r,&in){return};in.Name=strings.TrimSpace(in.Name);if in.Name==""||len(in.Name)>180{writeJSON(w,400,map[string]string{"error":"Nome do fornecedor obrigatório (máximo 180 caracteres)"});return}
@@ -80,10 +88,14 @@ func(h *CatalogHandler)updateSupplier(w http.ResponseWriter,r *http.Request,id S
 
 type catalogProduct struct{ID string `json:"id"`;Code string `json:"code"`;Name string `json:"name"`;Unit string `json:"unit"`;PriceCents int64 `json:"price_cents"`;CostCents int64 `json:"cost_cents"`;Barcode string `json:"barcode"`;CategoryID *string `json:"category_id"`;SupplierID *string `json:"supplier_id"`;CategoryName string `json:"category_name"`;SupplierName string `json:"supplier_name"`;NCM string `json:"ncm"`;CEST string `json:"cest"`;CFOP string `json:"cfop"`;TaxOrigin string `json:"tax_origin"`;TaxProfile string `json:"tax_profile"`;TrackLot bool `json:"track_lot"`;TrackExpiry bool `json:"track_expiry"`;WeighedItem bool `json:"weighed_item"`;Active bool `json:"active"`;ImageURL string `json:"image_url"`;CreatedAt time.Time `json:"created_at"`}
 func(h *CatalogHandler)listProducts(w http.ResponseWriter,r *http.Request,id SessionIdentity){
-	q:="%"+strings.TrimSpace(r.URL.Query().Get("q"))+"%";rows,err:=h.DB.QueryContext(r.Context(),`SELECT p.id::text,p.code,p.name,p.unit,p.price_cents,p.cost_cents,p.barcode,p.category_id::text,p.supplier_id::text,COALESCE(c.name,''),COALESCE(s.name,''),p.ncm,p.cest,p.cfop,p.tax_origin,p.tax_profile,p.track_lot,p.track_expiry,p.weighed_item,p.active,p.image_url,p.created_at
-	FROM tenant_products p LEFT JOIN tenant_categories c ON c.tenant_id=p.tenant_id AND c.id=p.category_id LEFT JOIN tenant_suppliers s ON s.tenant_id=p.tenant_id AND s.id=p.supplier_id
-	WHERE p.tenant_id=$1::uuid AND ($2='%%' OR p.name ILIKE $2 OR p.code ILIKE $2 OR p.barcode ILIKE $2) ORDER BY lower(p.name) LIMIT 250`,id.TenantID,q);if err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível listar produtos"});return};defer rows.Close()
-	items:=[]catalogProduct{};for rows.Next(){var x catalogProduct;var cat,sup sql.NullString;if rows.Scan(&x.ID,&x.Code,&x.Name,&x.Unit,&x.PriceCents,&x.CostCents,&x.Barcode,&cat,&sup,&x.CategoryName,&x.SupplierName,&x.NCM,&x.CEST,&x.CFOP,&x.TaxOrigin,&x.TaxProfile,&x.TrackLot,&x.TrackExpiry,&x.WeighedItem,&x.Active,&x.ImageURL,&x.CreatedAt)!=nil{writeJSON(w,500,map[string]string{"error":"Falha ao ler produtos"});return};if cat.Valid{x.CategoryID=&cat.String};if sup.Valid{x.SupplierID=&sup.String};items=append(items,x)};if rows.Err()!=nil{writeJSON(w,500,map[string]string{"error":"Falha ao ler produtos"});return};writeJSON(w,200,map[string]any{"products":items,"limit":250})
+	q:="%"+strings.TrimSpace(r.URL.Query().Get("q"))+"%";items:=[]catalogProduct{}
+	err:=WithTenantTx(r.Context(),h.DB,id.TenantID,nil,func(tx *sql.Tx)error{
+		rows,err:=tx.QueryContext(r.Context(),`SELECT p.id::text,p.code,p.name,p.unit,p.price_cents,p.cost_cents,p.barcode,p.category_id::text,p.supplier_id::text,COALESCE(c.name,''),COALESCE(s.name,''),p.ncm,p.cest,p.cfop,p.tax_origin,p.tax_profile,p.track_lot,p.track_expiry,p.weighed_item,p.active,p.image_url,p.created_at
+		FROM tenant_products p LEFT JOIN tenant_categories c ON c.tenant_id=p.tenant_id AND c.id=p.category_id LEFT JOIN tenant_suppliers s ON s.tenant_id=p.tenant_id AND s.id=p.supplier_id
+		WHERE p.tenant_id=$1::uuid AND ($2='%%' OR p.name ILIKE $2 OR p.code ILIKE $2 OR p.barcode ILIKE $2) ORDER BY lower(p.name) LIMIT 250`,id.TenantID,q);if err!=nil{return err};defer rows.Close()
+		for rows.Next(){var x catalogProduct;var cat,sup sql.NullString;if err:=rows.Scan(&x.ID,&x.Code,&x.Name,&x.Unit,&x.PriceCents,&x.CostCents,&x.Barcode,&cat,&sup,&x.CategoryName,&x.SupplierName,&x.NCM,&x.CEST,&x.CFOP,&x.TaxOrigin,&x.TaxProfile,&x.TrackLot,&x.TrackExpiry,&x.WeighedItem,&x.Active,&x.ImageURL,&x.CreatedAt);err!=nil{return err};if cat.Valid{x.CategoryID=&cat.String};if sup.Valid{x.SupplierID=&sup.String};items=append(items,x)};return rows.Err()
+	})
+	if err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível listar produtos"});return};writeJSON(w,200,map[string]any{"products":items,"limit":250})
 }
 type productInput struct{Code *string `json:"code"`;Name *string `json:"name"`;Unit *string `json:"unit"`;PriceCents *int64 `json:"price_cents"`;CostCents *int64 `json:"cost_cents"`;Barcode *string `json:"barcode"`;CategoryID *string `json:"category_id"`;SupplierID *string `json:"supplier_id"`;NCM *string `json:"ncm"`;CEST *string `json:"cest"`;CFOP *string `json:"cfop"`;TaxOrigin *string `json:"tax_origin"`;TaxProfile *string `json:"tax_profile"`;TrackLot *bool `json:"track_lot"`;TrackExpiry *bool `json:"track_expiry"`;WeighedItem *bool `json:"weighed_item"`;ImageURL *string `json:"image_url"`}
 func normalizeProduct(in *productInput)error{

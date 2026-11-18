@@ -93,7 +93,7 @@ func (h *POSHandler) closeCash(w http.ResponseWriter,r *http.Request){
 }
 
 type saleItemInput struct{ProductID string `json:"product_id"`;Quantity float64 `json:"quantity"`;DiscountCents int64 `json:"discount_cents"`}
-type salePaymentInput struct{Method string `json:"method"`;AmountCents int64 `json:"amount_cents"`;ExternalReference string `json:"external_reference"`}
+type salePaymentInput struct{Method string `json:"method"`;AmountCents int64 `json:"amount_cents"`;ReceivedCents int64 `json:"received_cents"`;ExternalReference string `json:"external_reference"`}
 type saleInput struct{CashSessionID string `json:"cash_session_id"`;CustomerID string `json:"customer_id"`;Items []saleItemInput `json:"items"`;Payments []salePaymentInput `json:"payments"`}
 
 func (h *POSHandler) sales(w http.ResponseWriter,r *http.Request){
@@ -127,11 +127,16 @@ func (h *POSHandler) createSale(w http.ResponseWriter,r *http.Request,id Session
 		in.Items[i].Quantity=math.Round(in.Items[i].Quantity*1000)/1000
 	}
 	paymentTotal:=int64(0)
+	cashChange:=int64(0)
 	allowed:=map[string]bool{"cash":true,"pix":true,"debit":true,"credit":true,"voucher":true,"other":true}
 	for i:=range in.Payments{
-		in.Payments[i].Method=strings.ToLower(strings.TrimSpace(in.Payments[i].Method))
-		if !allowed[in.Payments[i].Method]||in.Payments[i].AmountCents<=0||len(in.Payments[i].ExternalReference)>160||paymentTotal>9_000_000_000_000_000-in.Payments[i].AmountCents{writeJSON(w,400,map[string]string{"error":"Forma ou valor de pagamento inválido"});return}
-		paymentTotal+=in.Payments[i].AmountCents
+		p:=&in.Payments[i]
+		p.Method=strings.ToLower(strings.TrimSpace(p.Method))
+		if p.ReceivedCents==0 { p.ReceivedCents=p.AmountCents }
+		if !allowed[p.Method]||p.AmountCents<=0||p.ReceivedCents<p.AmountCents||len(p.ExternalReference)>160||paymentTotal>9_000_000_000_000_000-p.AmountCents{writeJSON(w,400,map[string]string{"error":"Forma ou valor de pagamento inválido"});return}
+		if p.Method!="cash"&&p.ReceivedCents!=p.AmountCents{writeJSON(w,400,map[string]string{"error":"Somente pagamento em dinheiro pode gerar troco"});return}
+		if p.Method=="cash"{change:=p.ReceivedCents-p.AmountCents;if cashChange>9_000_000_000_000_000-change{writeJSON(w,400,map[string]string{"error":"Troco acima do limite permitido"});return};cashChange+=change}
+		paymentTotal+=p.AmountCents
 	}
 	var saleID,saleNumber string
 	var subtotal,discount,total int64
@@ -189,11 +194,11 @@ func (h *POSHandler) createSale(w http.ResponseWriter,r *http.Request,id Session
 		}
 		if paymentTotal!=total{return errInvalidUserInput}
 		for _,payment:=range in.Payments{
-			if _,err:=tx.ExecContext(r.Context(),`INSERT INTO tenant_payments(tenant_id,sale_id,method,amount_cents,external_reference)
-				VALUES($1::uuid,$2::uuid,$3,$4,$5)`,id.TenantID,saleID,payment.Method,payment.AmountCents,strings.TrimSpace(payment.ExternalReference));err!=nil{return err}
+			if _,err:=tx.ExecContext(r.Context(),`INSERT INTO tenant_payments(tenant_id,sale_id,method,amount_cents,received_cents,external_reference)
+				VALUES($1::uuid,$2::uuid,$3,$4,$5,$6)`,id.TenantID,saleID,payment.Method,payment.AmountCents,payment.ReceivedCents,strings.TrimSpace(payment.ExternalReference));err!=nil{return err}
 		}
-		_,err:=tx.ExecContext(r.Context(),`UPDATE tenant_sales SET status='completed',subtotal_cents=$3,discount_cents=$4,total_cents=$5,completed_at=now()
-			WHERE tenant_id=$1::uuid AND id=$2::uuid`,id.TenantID,saleID,subtotal,discount,total)
+		_,err:=tx.ExecContext(r.Context(),`UPDATE tenant_sales SET status='completed',subtotal_cents=$3,discount_cents=$4,total_cents=$5,change_cents=$6,completed_at=now()
+			WHERE tenant_id=$1::uuid AND id=$2::uuid`,id.TenantID,saleID,subtotal,discount,total,cashChange)
 		return err
 	})
 	if err!=nil{
@@ -202,6 +207,6 @@ func (h *POSHandler) createSale(w http.ResponseWriter,r *http.Request,id Session
 		if err==errInvalidUserInput{writeJSON(w,400,map[string]string{"error":"Confira caixa aberto, descontos, pagamentos e dados da venda"});return}
 		writeJSON(w,409,map[string]string{"error":"Venda não concluída; confira os dados e tente novamente"});return
 	}
-	writeJSON(w,201,map[string]any{"id":saleID,"sale_number":saleNumber,"status":"completed","subtotal_cents":subtotal,"discount_cents":discount,"total_cents":total})
+	writeJSON(w,201,map[string]any{"id":saleID,"sale_number":saleNumber,"status":"completed","subtotal_cents":subtotal,"discount_cents":discount,"total_cents":total,"change_cents":cashChange})
 }
 

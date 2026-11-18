@@ -139,6 +139,11 @@ func (h *POSHandler) createSale(w http.ResponseWriter,r *http.Request,id Session
 		var cashStatus string
 		if err:=tx.QueryRowContext(r.Context(),`SELECT status FROM tenant_cash_sessions WHERE tenant_id=$1::uuid AND id=$2::uuid FOR UPDATE`,id.TenantID,in.CashSessionID).Scan(&cashStatus);err!=nil{return err}
 		if cashStatus!="open"{return errInvalidUserInput}
+		if in.CustomerID!="" {
+			var active bool
+			if err:=tx.QueryRowContext(r.Context(),`SELECT active FROM tenant_customers WHERE tenant_id=$1::uuid AND id=$2::uuid`,id.TenantID,in.CustomerID).Scan(&active);err!=nil{return err}
+			if !active{return errInvalidUserInput}
+		}
 		saleNumber="PDV-"+time.Now().UTC().Format("20060102-150405.000000000")
 		if err:=tx.QueryRowContext(r.Context(),`INSERT INTO tenant_sales(tenant_id,sale_number,cash_session_id,customer_id,operator_id,status)
 			VALUES($1::uuid,$2,$3::uuid,NULLIF($4,'')::uuid,$5::uuid,'draft') RETURNING id::text`,id.TenantID,saleNumber,in.CashSessionID,in.CustomerID,id.UserID).Scan(&saleID);err!=nil{return err}

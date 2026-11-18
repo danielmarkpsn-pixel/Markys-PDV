@@ -8,7 +8,17 @@ UPDATE public.tenant_payments SET received_cents=amount_cents WHERE received_cen
 ALTER TABLE public.tenant_payments
   ALTER COLUMN received_cents SET DEFAULT 0,
   ALTER COLUMN received_cents SET NOT NULL;
-ALTER TABLE public.tenant_payments
-  ADD CONSTRAINT tenant_payments_received_gte_applied
-  CHECK (received_cents >= amount_cents);
+DO $
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'tenant_payments_received_gte_applied'
+      AND conrelid = 'public.tenant_payments'::regclass
+  ) THEN
+    ALTER TABLE public.tenant_payments
+      ADD CONSTRAINT tenant_payments_received_gte_applied
+      CHECK (received_cents >= amount_cents);
+  END IF;
+END
+$;
 COMMIT;

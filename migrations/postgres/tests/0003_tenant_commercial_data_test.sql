@@ -11,9 +11,12 @@ BEGIN
     INSERT INTO tenants(id, legal_name, display_name, document)
     VALUES (tenant_a, 'Commercial A', 'Commercial A', 'COMM-A-' || replace(tenant_a::text, '-', '')),
            (tenant_b, 'Commercial B', 'Commercial B', 'COMM-B-' || replace(tenant_b::text, '-', ''));
+    PERFORM set_config('app.tenant_id', tenant_a::text, true);
     INSERT INTO tenant_products(tenant_id, code, name, price_cents)
-    VALUES (tenant_a, 'SKU-A', 'Product A', 1000),
-           (tenant_b, 'SKU-B', 'Product B', 2000);
+    VALUES (tenant_a, 'SKU-A', 'Product A', 1000);
+    PERFORM set_config('app.tenant_id', tenant_b::text, true);
+    INSERT INTO tenant_products(tenant_id, code, name, price_cents)
+    VALUES (tenant_b, 'SKU-B', 'Product B', 2000);
     PERFORM set_config('test.commercial_tenant_a', tenant_a::text, true);
     PERFORM set_config('test.commercial_tenant_b', tenant_b::text, true);
 END

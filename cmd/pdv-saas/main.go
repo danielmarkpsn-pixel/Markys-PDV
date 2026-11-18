@@ -43,7 +43,7 @@ func main() {
 
 	addr := strings.TrimSpace(os.Getenv("SAAS_ADDR"))
 	if addr == "" { addr = ":8080" }
-	server := &http.Server{Addr: addr, Handler: securityHeaders(mux), ReadHeaderTimeout: 5*time.Second, IdleTimeout: 60*time.Second}
+	server := &http.Server{Addr: addr, Handler: securityHeaders(saas.NewLoginRateLimiter(10, 5*time.Minute).Middleware(mux)), ReadHeaderTimeout: 5*time.Second, IdleTimeout: 60*time.Second}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

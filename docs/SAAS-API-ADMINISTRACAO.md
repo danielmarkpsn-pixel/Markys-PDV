@@ -62,3 +62,11 @@ Os três recursos abaixo exigem sessão válida. Consultas são permitidas a usu
 - Preços e custos são armazenados em centavos inteiros. Estoque não pode ser alterado pela edição cadastral do produto; terá fluxo próprio de movimentação para preservar o histórico.
 
 As APIs já estão conectadas ao serviço Go SaaS, mas ainda não estão conectadas à interface visual do PDV. Também faltam testes específicos de permissões por perfil e operações de estoque/lotes/validade.
+
+## Interface web inicial
+
+O executável `cmd/pdv-saas` agora serve os arquivos estáticos embutidos em `cmd/pdv-saas/web`:
+- `/`: login da empresa e área inicial com produtos, categorias, fornecedores, usuários e consulta de licença.
+- `/plataforma.html`: console do administrador global para bootstrap inicial, planos e provisionamento/gestão de empresas.
+
+A interface usa os endpoints descritos neste documento e mantém o login em cookies HttpOnly. O fluxo visual de venda/PDV, caixa, estoque/movimentações, clientes, compras, fiscal e integrações ainda não foi conectado. Portanto, esta entrega é a primeira interface de acesso e cadastros SaaS, não uma versão completa pronta para operação comercial.

@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"embed"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +15,9 @@ import (
 
 	"example.com/markys-pdv/internal/saas"
 )
+
+//go:embed web/*
+var webAssets embed.FS
 
 func main() {
 	cfg, err := saas.LoadConfig(os.Getenv)
@@ -39,9 +44,9 @@ func main() {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_, _ = w.Write([]byte(`{"status":"ok","service":"markys-pdv-saas-auth","database":"postgres"}`))
 	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.NotFound(w, r)
-	})
+	staticFiles, err := fs.Sub(webAssets, "web")
+	if err != nil { log.Fatal(err) }
+	mux.Handle("/", http.FileServer(http.FS(staticFiles)))
 
 	addr := strings.TrimSpace(os.Getenv("SAAS_ADDR"))
 	if addr == "" { addr = ":8080" }

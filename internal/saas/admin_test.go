@@ -33,6 +33,6 @@ func TestTenantAdminRejectsNonAdminRole(t *testing.T) {
  ctx:=context.WithValue(req.Context(),identityContextKey{},SessionIdentity{TenantID:"00000000-0000-0000-0000-000000000001",UserID:"00000000-0000-0000-0000-000000000002",Role:"cashier"})
  req=req.WithContext(ctx)
  rec:=httptest.NewRecorder()
- auth.RequireSession(http.HandlerFunc(handler.license)).ServeHTTP(rec,req)
+ http.HandlerFunc(handler.license).ServeHTTP(rec,req)
  if rec.Code!=http.StatusForbidden {t.Fatalf("status=%d, esperado 403",rec.Code)}
 }

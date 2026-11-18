@@ -86,6 +86,8 @@ func TestPOSCashAndSaleHTTPIntegration(t *testing.T) {
 	if err:=json.Unmarshal(guardSale.Body.Bytes(),&guardSaleResult);err!=nil||guardSaleResult.ID==""{t.Fatalf("id da venda de proteção inválido: %v %s",err,guardSale.Body.String())}
 	closedCashRefund:=request(http.MethodPost,"/api/pos/sales/"+guardSaleResult.ID+"/refund",`{"reason":"Devolução após fechar caixa"}`)
 	if closedCashRefund.Code!=http.StatusConflict||!strings.Contains(closedCashRefund.Body.String(),"caixa"){t.Fatalf("estorno em dinheiro com caixa fechado deveria ser bloqueado: status=%d body=%s",closedCashRefund.Code,closedCashRefund.Body.String())}
+	if err:=db.QueryRowContext(ctx,"SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,productID).Scan(&stock);err!=nil{t.Fatal(err)}
+	if stock!=7{t.Fatalf("estorno bloqueado deveria reverter qualquer alteração de estoque; saldo esperado 7, recebido %v",stock)}
 	list:=request(http.MethodGet,"/api/pos/sales?limit=20","")
 	if list.Code!=http.StatusOK||!strings.Contains(list.Body.String(),"sale_number"){t.Fatalf("listagem de vendas: status=%d body=%s",list.Code,list.Body.String())}
 }

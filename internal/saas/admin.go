@@ -47,11 +47,14 @@ func (h *TenantAdminHandler) users(w http.ResponseWriter,r *http.Request) {
  switch r.Method {
  case http.MethodGet:
   type user struct {ID string `json:"id"`; Username string `json:"username"`; DisplayName string `json:"display_name"`; Email string `json:"email"`; Role string `json:"role"`; Active bool `json:"active"`; CreatedAt time.Time `json:"created_at"`}
-  rows,err:=h.DB.QueryContext(r.Context(),`SELECT id::text,username,display_name,email,role,active,created_at FROM tenant_users WHERE tenant_id=$1::uuid ORDER BY lower(display_name),lower(username)`,identity.TenantID)
+  users:=[]user{}
+  err:=WithTenantTx(r.Context(),h.DB,identity.TenantID,nil,func(tx *sql.Tx)error{
+   rows,err:=tx.QueryContext(r.Context(),`SELECT id::text,username,display_name,email,role,active,created_at FROM tenant_users WHERE tenant_id=$1::uuid ORDER BY lower(display_name),lower(username)`,identity.TenantID)
+   if err!=nil{return err};defer rows.Close()
+   for rows.Next(){var u user;if err:=rows.Scan(&u.ID,&u.Username,&u.DisplayName,&u.Email,&u.Role,&u.Active,&u.CreatedAt);err!=nil{return err};users=append(users,u)}
+   return rows.Err()
+  })
   if err!=nil {writeJSON(w,500,map[string]string{"error":"Não foi possível listar usuários"});return}
-  defer rows.Close(); users:=[]user{}
-  for rows.Next(){var u user;if err:=rows.Scan(&u.ID,&u.Username,&u.DisplayName,&u.Email,&u.Role,&u.Active,&u.CreatedAt);err!=nil{writeJSON(w,500,map[string]string{"error":"Falha ao ler usuários"});return};users=append(users,u)}
-  if err:=rows.Err();err!=nil{writeJSON(w,500,map[string]string{"error":"Falha ao ler usuários"});return}
   writeJSON(w,200,map[string]any{"users":users})
  case http.MethodPost:
   var input struct{Username string `json:"username"`;DisplayName string `json:"display_name"`;Email string `json:"email"`;Password string `json:"password"`;Role string `json:"role"`}

@@ -8,6 +8,7 @@ BEGIN
 END
 $$;
 
+GRANT USAGE ON SCHEMA public TO markys_app_test;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tenant_users, tenant_sessions, tenant_audit_events TO markys_app_test;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO markys_app_test;
 
@@ -16,9 +17,6 @@ DO $$
 DECLARE
     tenant_a uuid := gen_random_uuid();
     tenant_b uuid := gen_random_uuid();
-    user_a uuid;
-    user_b uuid;
-    visible_count integer;
 BEGIN
     INSERT INTO tenants(id, legal_name, display_name, document)
     VALUES (tenant_a, 'RLS A', 'RLS A', 'RLS-A-' || replace(tenant_a::text, '-', '')),
@@ -26,12 +24,21 @@ BEGIN
     INSERT INTO tenant_subscriptions(tenant_id, status, seat_limit)
     VALUES (tenant_a, 'active', 2), (tenant_b, 'active', 2);
     INSERT INTO tenant_users(tenant_id, username, display_name, password_hash, role)
-    VALUES (tenant_a, 'rls-a', 'RLS A', 'hash', 'cashier') RETURNING id INTO user_a;
+    VALUES (tenant_a, 'rls-a', 'RLS A', 'hash', 'cashier');
     INSERT INTO tenant_users(tenant_id, username, display_name, password_hash, role)
-    VALUES (tenant_b, 'rls-b', 'RLS B', 'hash', 'cashier') RETURNING id INTO user_b;
+    VALUES (tenant_b, 'rls-b', 'RLS B', 'hash', 'cashier');
+    PERFORM set_config('test.tenant_a', tenant_a::text, true);
+    PERFORM set_config('test.tenant_b', tenant_b::text, true);
+END
+$$;
 
-    EXECUTE 'SET LOCAL ROLE markys_app_test';
-    PERFORM set_config('app.tenant_id', tenant_a::text, true);
+SET LOCAL ROLE markys_app_test;
+SELECT set_config('app.tenant_id', current_setting('test.tenant_a'), true);
+
+DO $$
+DECLARE
+    visible_count integer;
+BEGIN
     SELECT count(*) INTO visible_count FROM tenant_users;
     IF visible_count <> 1 THEN
         RAISE EXCEPTION 'Tenant A must see only its own user; visible rows: %', visible_count;
@@ -39,7 +46,7 @@ BEGIN
 
     BEGIN
         INSERT INTO tenant_users(tenant_id, username, display_name, password_hash, role)
-        VALUES (tenant_b, 'cross-write', 'Cross write', 'hash', 'cashier');
+        VALUES (current_setting('test.tenant_b')::uuid, 'cross-write', 'Cross write', 'hash', 'cashier');
         RAISE EXCEPTION 'Cross-tenant insert unexpectedly succeeded';
     EXCEPTION WHEN insufficient_privilege THEN
         NULL;

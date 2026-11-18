@@ -143,3 +143,8 @@ A branch `feature/markys-pdv-online` já contém a fundação técnica abaixo, s
 O SaaS agora possui cadastro multiempresa de clientes, com pesquisa por nome/documento/telefone, CPF/CNPJ normalizado e único dentro da empresa, edição, inativação lógica e associação opcional de cliente a uma venda no PDV. A interface está disponível em `/customers.html` e o PDV apresenta seletor de cliente ativo. A migração `0005_customer_lifecycle.sql` integra o histórico de migrações.
 
 Esta etapa ainda precisa passar pela execução do CI PostgreSQL e Windows antes de ser considerada validada.
+
+
+## Atualização — pagamentos divididos e troco
+
+O PDV agora permite distribuir o total entre até 10 meios de pagamento. No dinheiro, o operador informa o valor recebido e o sistema calcula e registra o troco. A conciliação do caixa contabiliza o valor líquido aplicado à venda, evitando que o troco seja tratado como entrada de caixa. A migração `0006_payment_tender_change.sql` e o teste de integração correspondente foram adicionados. A execução real do CI continua pendente devido à falha do runner antes de iniciar qualquer etapa.

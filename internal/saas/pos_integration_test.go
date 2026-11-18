@@ -48,5 +48,5 @@ func TestPOSCashAndSaleHTTPIntegration(t *testing.T) {
 	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":5900}`,openResult.ID))
 	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":6000`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento: status=%d body=%s",closed.Code,closed.Body.String())}
 	list:=request(http.MethodGet,"/api/pos/sales?limit=20","")
-	if list.Code!=http.StatusOK||!strings.Contains(list.Body.String(),"POS-SKU")==true{t.Fatalf("listagem de vendas: status=%d body=%s",list.Code,list.Body.String())}
+	if list.Code!=http.StatusOK||!strings.Contains(list.Body.String(),"sale_number"){t.Fatalf("listagem de vendas: status=%d body=%s",list.Code,list.Body.String())}
 }

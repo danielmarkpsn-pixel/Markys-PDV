@@ -70,8 +70,15 @@ func TestPOSCashAndSaleHTTPIntegration(t *testing.T) {
 	if duplicateRefund.Code!=http.StatusConflict{t.Fatalf("estorno duplicado deveria ser bloqueado: status=%d body=%s",duplicateRefund.Code,duplicateRefund.Body.String())}
 	if err:=db.QueryRowContext(ctx,"SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,productID).Scan(&stock);err!=nil{t.Fatal(err)}
 	if stock!=8{t.Fatalf("estoque deveria retornar a 8 após estorno, recebido %v",stock)}
-	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":9900}`,openResult.ID))
-	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":10000`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento após estorno: status=%d body=%s",closed.Code,closed.Body.String())}
+	var lotSaleResult struct{ID string `json:"id"`}
+	if err:=json.Unmarshal(lotSale.Body.Bytes(),&lotSaleResult);err!=nil||lotSaleResult.ID==""{t.Fatalf("id da venda por lote inválido: %v %s",err,lotSale.Body.String())}
+	lotRefund:=request(http.MethodPost,"/api/pos/sales/"+lotSaleResult.ID+"/refund",`{"reason":"Devolução integral do produto"}`)
+	if lotRefund.Code!=http.StatusOK{t.Fatalf("estorno da venda por lote: status=%d body=%s",lotRefund.Code,lotRefund.Body.String())}
+	if err:=db.QueryRowContext(ctx,"SELECT quantity FROM tenant_product_lots WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,lotEarlyID).Scan(&earlyQty);err!=nil{t.Fatal(err)}
+	if err:=db.QueryRowContext(ctx,"SELECT quantity FROM tenant_product_lots WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,lotLateID).Scan(&lateQty);err!=nil{t.Fatal(err)}
+	if earlyQty!=3||lateQty!=3{t.Fatalf("estorno deveria recompor exatamente os lotes FEFO em 3 e 3; recebeu %v e %v",earlyQty,lateQty)}
+	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":5900}`,openResult.ID))
+	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":6000`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento após estornos: status=%d body=%s",closed.Code,closed.Body.String())}
 	list:=request(http.MethodGet,"/api/pos/sales?limit=20","")
 	if list.Code!=http.StatusOK||!strings.Contains(list.Body.String(),"sale_number"){t.Fatalf("listagem de vendas: status=%d body=%s",list.Code,list.Body.String())}
 }

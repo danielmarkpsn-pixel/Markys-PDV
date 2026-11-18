@@ -24,8 +24,8 @@ func (h *POSHandler) refundSale(w http.ResponseWriter, r *http.Request) {
   var status string
   var cashStatus sql.NullString
   if err:=tx.QueryRowContext(r.Context(),`SELECT s.sale_number,s.status,s.total_cents,cs.status
-   FROM tenant_sales s LEFT JOIN tenant_cash_sessions cs ON cs.tenant_id=s.tenant_id AND cs.id=s.cash_session_id
-   WHERE s.tenant_id=$1::uuid AND s.id=$2::uuid FOR UPDATE OF s`,id.TenantID,saleID).Scan(&saleNumber,&status,&total,&cashStatus);err!=nil{return err}
+   FROM tenant_sales s JOIN tenant_cash_sessions cs ON cs.tenant_id=s.tenant_id AND cs.id=s.cash_session_id
+   WHERE s.tenant_id=$1::uuid AND s.id=$2::uuid FOR UPDATE OF s,cs`,id.TenantID,saleID).Scan(&saleNumber,&status,&total,&cashStatus);err!=nil{return err}
   if status!="completed"||total<=0{return errInvalidUserInput}
   rows,err:=tx.QueryContext(r.Context(),`SELECT product_id::text,quantity,reference_type,reference_id::text FROM tenant_stock_movements
    WHERE tenant_id=$1::uuid AND sale_id=$2::uuid AND movement_type='sale' ORDER BY created_at,id FOR UPDATE`,id.TenantID,saleID)

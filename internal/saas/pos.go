@@ -18,6 +18,7 @@ func (h *POSHandler) Register(mux *http.ServeMux) {
 	mux.Handle("/api/pos/cash/open",h.Auth.RequireSession(http.HandlerFunc(h.openCash)))
 	mux.Handle("/api/pos/cash/close",h.Auth.RequireSession(http.HandlerFunc(h.closeCash)))
 	mux.Handle("/api/pos/sales",h.Auth.RequireSession(http.HandlerFunc(h.sales)))
+	mux.Handle("/api/pos/sales/",h.Auth.RequireSession(http.HandlerFunc(h.refundSale)))
 }
 
 func posOperator(w http.ResponseWriter,r *http.Request)(SessionIdentity,bool){
@@ -46,9 +47,9 @@ func (h *POSHandler) cashStatus(w http.ResponseWriter,r *http.Request){
 			FROM tenant_cash_sessions WHERE tenant_id=$1::uuid AND status='open'
 			AND ($2='' OR terminal_code=$2) ORDER BY opened_at DESC LIMIT 1`,id.TenantID,terminal).Scan(&x.ID,&x.TerminalCode,&x.OpeningAmountCents,&x.OpenedAt)
 		if err==sql.ErrNoRows{return nil};if err!=nil{return err}
-		err=tx.QueryRowContext(r.Context(),`SELECT $2::bigint + COALESCE(SUM(p.amount_cents) FILTER (WHERE p.method='cash'),0)::bigint
-			FROM tenant_payments p JOIN tenant_sales s ON s.tenant_id=p.tenant_id AND s.id=p.sale_id
-			WHERE s.tenant_id=$1::uuid AND s.cash_session_id=$3::uuid AND s.status='completed'`,id.TenantID,x.OpeningAmountCents,x.ID).Scan(&x.ExpectedCashCents)
+		err=tx.QueryRowContext(r.Context(),`SELECT $2::bigint
+			+ COALESCE((SELECT SUM(p.amount_cents) FROM tenant_payments p JOIN tenant_sales s ON s.tenant_id=p.tenant_id AND s.id=p.sale_id WHERE s.tenant_id=$1::uuid AND s.cash_session_id=$3::uuid AND p.method='cash' AND s.status IN ('completed','refunded')),0)::bigint
+			- COALESCE((SELECT SUM(rp.amount_cents) FROM tenant_sale_refund_payments rp JOIN tenant_sale_refunds r ON r.tenant_id=rp.tenant_id AND r.id=rp.refund_id JOIN tenant_sales s ON s.tenant_id=r.tenant_id AND s.id=r.sale_id WHERE s.tenant_id=$1::uuid AND s.cash_session_id=$3::uuid AND rp.method='cash'),0)::bigint`,id.TenantID,x.OpeningAmountCents,x.ID).Scan(&x.ExpectedCashCents)
 		if err!=nil{return err};session=&x;return nil
 	})
 	if err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível consultar o caixa"});return}
@@ -80,9 +81,9 @@ func (h *POSHandler) closeCash(w http.ResponseWriter,r *http.Request){
 	err:=WithTenantTx(r.Context(),h.DB,id.TenantID,nil,func(tx *sql.Tx)error{
 		var opening int64
 		if err:=tx.QueryRowContext(r.Context(),`SELECT opening_amount_cents FROM tenant_cash_sessions WHERE tenant_id=$1::uuid AND id=$2::uuid AND status='open' FOR UPDATE`,id.TenantID,in.SessionID).Scan(&opening);err!=nil{return err}
-		if err:=tx.QueryRowContext(r.Context(),`SELECT $2::bigint + COALESCE(SUM(p.amount_cents) FILTER (WHERE p.method='cash'),0)::bigint
-			FROM tenant_payments p JOIN tenant_sales s ON s.tenant_id=p.tenant_id AND s.id=p.sale_id
-			WHERE s.tenant_id=$1::uuid AND s.cash_session_id=$3::uuid AND s.status='completed'`,id.TenantID,opening,in.SessionID).Scan(&expected);err!=nil{return err}
+		if err:=tx.QueryRowContext(r.Context(),`SELECT $2::bigint
+			+ COALESCE((SELECT SUM(p.amount_cents) FROM tenant_payments p JOIN tenant_sales s ON s.tenant_id=p.tenant_id AND s.id=p.sale_id WHERE s.tenant_id=$1::uuid AND s.cash_session_id=$3::uuid AND p.method='cash' AND s.status IN ('completed','refunded')),0)::bigint
+			- COALESCE((SELECT SUM(rp.amount_cents) FROM tenant_sale_refund_payments rp JOIN tenant_sale_refunds r ON r.tenant_id=rp.tenant_id AND r.id=rp.refund_id JOIN tenant_sales s ON s.tenant_id=r.tenant_id AND s.id=r.sale_id WHERE s.tenant_id=$1::uuid AND s.cash_session_id=$3::uuid AND rp.method='cash'),0)::bigint`,id.TenantID,opening,in.SessionID).Scan(&expected);err!=nil{return err}
 		difference:=in.ClosingAmountCents-expected
 		_,err:=tx.ExecContext(r.Context(),`UPDATE tenant_cash_sessions SET status='closed',closed_by=$3::uuid,closed_at=now(),closing_amount_cents=$4,expected_cash_cents=$5,cash_difference_cents=$6
 			WHERE tenant_id=$1::uuid AND id=$2::uuid AND status='open'`,id.TenantID,in.SessionID,id.UserID,in.ClosingAmountCents,expected,difference)
@@ -178,14 +179,14 @@ func (h *POSHandler) createSale(w http.ResponseWriter,r *http.Request,id Session
 					if remaining<=0.000001{break}
 					take:=math.Min(remaining,l.Quantity)
 					if _,err:=tx.ExecContext(r.Context(),`UPDATE tenant_product_lots SET quantity=quantity-$4 WHERE tenant_id=$1::uuid AND product_id=$2::uuid AND id=$3::uuid`,id.TenantID,item.ProductID,l.ID,take);err!=nil{return err}
-					if _,err:=tx.ExecContext(r.Context(),`INSERT INTO tenant_stock_movements(tenant_id,product_id,movement_type,quantity,reference_type,reference_id,user_id,note)
-						VALUES($1::uuid,$2::uuid,'sale',$3,'lot',$4::uuid,$5::uuid,$6)`,id.TenantID,item.ProductID,-take,l.ID,id.UserID,"Venda "+saleNumber);err!=nil{return err}
+					if _,err:=tx.ExecContext(r.Context(),`INSERT INTO tenant_stock_movements(tenant_id,product_id,movement_type,quantity,reference_type,reference_id,user_id,note,sale_id)
+						VALUES($1::uuid,$2::uuid,'sale',$3,'lot',$4::uuid,$5::uuid,$6,$7::uuid)`,id.TenantID,item.ProductID,-take,l.ID,id.UserID,"Venda "+saleNumber,saleID);err!=nil{return err}
 					remaining-=take
 				}
 				if remaining>0.000001{return errInsufficientStock}
 			}else{
-				if _,err:=tx.ExecContext(r.Context(),`INSERT INTO tenant_stock_movements(tenant_id,product_id,movement_type,quantity,reference_type,reference_id,user_id,note)
-					VALUES($1::uuid,$2::uuid,'sale',$3,'sale',$4::uuid,$5::uuid,$6)`,id.TenantID,item.ProductID,-item.Quantity,saleID,id.UserID,"Venda "+saleNumber);err!=nil{return err}
+				if _,err:=tx.ExecContext(r.Context(),`INSERT INTO tenant_stock_movements(tenant_id,product_id,movement_type,quantity,reference_type,reference_id,user_id,note,sale_id)
+					VALUES($1::uuid,$2::uuid,'sale',$3,'sale',$4::uuid,$5::uuid,$6,$7::uuid)`,id.TenantID,item.ProductID,-item.Quantity,saleID,id.UserID,"Venda "+saleNumber);err!=nil{return err}
 			}
 			if _,err:=tx.ExecContext(r.Context(),`UPDATE tenant_products SET stock=stock-$3,updated_at=now() WHERE tenant_id=$1::uuid AND id=$2::uuid`,id.TenantID,item.ProductID,item.Quantity);err!=nil{return err}
 			if _,err:=tx.ExecContext(r.Context(),`INSERT INTO tenant_sale_items(tenant_id,sale_id,product_id,description,quantity,unit_price_cents,discount_cents,line_total_cents)

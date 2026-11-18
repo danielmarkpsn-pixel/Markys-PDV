@@ -159,8 +159,10 @@ func (h *PlatformAdminHandler) tenantByID(w http.ResponseWriter,r *http.Request)
 	var exists bool;if err=tx.QueryRowContext(r.Context(),"SELECT EXISTS(SELECT 1 FROM tenants WHERE id=$1::uuid)",id).Scan(&exists);err!=nil||!exists{writeJSON(w,404,map[string]string{"error":"Empresa não encontrada"});return}
 	if in.Status!=nil {_,err=tx.ExecContext(r.Context(),"UPDATE tenants SET status=$2,updated_at=now() WHERE id=$1::uuid",id,*in.Status)}
 	if err==nil&&in.SeatLimit!=nil {
-		var activeUsers int
-		if err=tx.QueryRowContext(r.Context(),"SELECT count(*) FROM tenant_users WHERE tenant_id=$1::uuid AND active=true",id).Scan(&activeUsers); err==nil && *in.SeatLimit<activeUsers {
+		var currentSeatLimit,activeUsers int
+		err=tx.QueryRowContext(r.Context(),"SELECT seat_limit FROM tenant_subscriptions WHERE tenant_id=$1::uuid FOR UPDATE",id).Scan(&currentSeatLimit)
+		if err==nil { err=tx.QueryRowContext(r.Context(),"SELECT count(*) FROM tenant_users WHERE tenant_id=$1::uuid AND active=true",id).Scan(&activeUsers) }
+		if err==nil && *in.SeatLimit<activeUsers {
 			writeJSON(w,409,map[string]string{"error":"O novo limite não pode ser menor que a quantidade de logins ativos"}); return
 		}
 	}

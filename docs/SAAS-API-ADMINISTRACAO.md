@@ -69,7 +69,7 @@ O executável `cmd/pdv-saas` agora serve os arquivos estáticos embutidos em `cm
 - `/`: login da empresa e área inicial com produtos, categorias, fornecedores, usuários e consulta de licença.
 - `/plataforma.html`: console do administrador global para bootstrap inicial, planos e provisionamento/gestão de empresas.
 
-A interface usa os endpoints descritos neste documento e mantém o login em cookies HttpOnly. O fluxo visual inicial de venda/PDV e caixa já foi conectado. Ainda faltam clientes na tela de venda, pagamento dividido/troco, cancelamento e estorno, compras, fiscal e integrações. Portanto, esta entrega é a primeira interface de acesso e cadastros SaaS, não uma versão completa pronta para operação comercial.
+A interface usa os endpoints descritos neste documento e mantém o login em cookies HttpOnly. O fluxo visual inicial de venda/PDV e caixa já foi conectado. Ainda faltam pagamento dividido/troco, cancelamento e estorno, compras, fiscal e integrações. Portanto, esta entrega é a primeira interface de acesso e cadastros SaaS, não uma versão completa pronta para operação comercial.
 
 
 ## Clientes da empresa (API e interface)

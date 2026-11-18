@@ -49,3 +49,16 @@ Antes do primeiro uso, configure o segredo forte `SAAS_PLATFORM_BOOTSTRAP_TOKEN`
 O limite de logins é controlado exclusivamente pela API da plataforma e também pelo gatilho PostgreSQL no momento de criação/reativação de usuários. O endpoint de administração da empresa continua somente leitura para licença.
 
 A criação de planos e empresas já está disponível na API, mas ainda não existe painel visual da plataforma. O bootstrap deve ser feito por cliente HTTP seguro, sem expor o segredo no navegador ou em código-fonte. O segredo precisa ser removido imediatamente após o bootstrap. Ainda são necessários controles operacionais adicionais (auditoria global dedicada, MFA, recuperação segura de acesso e política de rotação de segredos) antes de uso comercial em produção.
+
+## Catálogo da empresa (API)
+
+Os três recursos abaixo exigem sessão válida. Consultas são permitidas a usuários autenticados; criação, edição e inativação exigem perfil `owner`, `admin` ou `manager`. Todas as operações usam transações com contexto RLS do tenant obtido da sessão.
+
+- Categorias: `GET/POST /api/catalog/categories`, `PUT/DELETE /api/catalog/categories/{id}`.
+- Fornecedores: `GET/POST /api/catalog/suppliers`, `PUT/DELETE /api/catalog/suppliers/{id}`.
+- Produtos: `GET/POST /api/catalog/products`, `PUT/DELETE /api/catalog/products/{id}`.
+- A listagem de produtos aceita `?q=` para pesquisar nome, código ou código de barras e retorna até 250 registros por consulta.
+- DELETE realiza inativação lógica; não remove fisicamente registros relacionados.
+- Preços e custos são armazenados em centavos inteiros. Estoque não pode ser alterado pela edição cadastral do produto; terá fluxo próprio de movimentação para preservar o histórico.
+
+As APIs já estão conectadas ao serviço Go SaaS, mas ainda não estão conectadas à interface visual do PDV. Também faltam testes específicos de permissões por perfil e operações de estoque/lotes/validade.

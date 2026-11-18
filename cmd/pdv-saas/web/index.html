@@ -136,7 +136,7 @@ document.querySelectorAll('.nav').forEach(b=>b.addEventListener('click',()=>swit
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginMessage').textContent='Validando acesso...';try{const result=await api('/api/auth/login',{method:'POST',body:JSON.stringify({company_document:$('companyDocument').value,username:$('username').value,password:$('password').value})});$('loginMessage').textContent='Acesso autorizado.';$('loginMessage').classList.add('ok');showApp(result.user)}catch(err){$('loginMessage').classList.remove('ok');$('loginMessage').textContent=err.message}});
 $('logoutBtn').addEventListener('click',async()=>{try{await api('/api/auth/logout',{method:'POST',body:'{}'})}catch{}showLogin()});
 async function loadAll(){await Promise.allSettled([loadProducts(),loadCategories(),loadSuppliers(),loadUsers(),loadLicense(),loadInventory(),loadPOS()]);updateStats()}
-async function loadProducts(){const d=await api('/api/catalog/products');state.products=d.products||[];renderProducts()}
+async function loadProducts(){const d=await api('/api/catalog/products');state.products=d.products||[];renderProducts();if($('cartProduct'))renderPOS()}
 async function loadCategories(){const d=await api('/api/catalog/categories');state.categories=d.categories||[];renderCategories();fillSelects()}
 async function loadSuppliers(){const d=await api('/api/catalog/suppliers');state.suppliers=d.suppliers||[];renderSuppliers();fillSelects()}
 async function loadUsers(){try{const d=await api('/api/admin/users');state.users=d.users||[];renderUsers()}catch(e){$('usersTable').innerHTML='<tr><td colspan="4" class="empty">Seu perfil não possui permissão para gerenciar usuários.</td></tr>'}}

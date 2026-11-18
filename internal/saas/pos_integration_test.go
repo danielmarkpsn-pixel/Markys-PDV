@@ -77,8 +77,15 @@ func TestPOSCashAndSaleHTTPIntegration(t *testing.T) {
 	if err:=db.QueryRowContext(ctx,"SELECT quantity FROM tenant_product_lots WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,lotEarlyID).Scan(&earlyQty);err!=nil{t.Fatal(err)}
 	if err:=db.QueryRowContext(ctx,"SELECT quantity FROM tenant_product_lots WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,lotLateID).Scan(&lateQty);err!=nil{t.Fatal(err)}
 	if earlyQty!=3||lateQty!=3{t.Fatalf("estorno deveria recompor exatamente os lotes FEFO em 3 e 3; recebeu %v e %v",earlyQty,lateQty)}
-	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":5900}`,openResult.ID))
-	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":6000`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento após estornos: status=%d body=%s",closed.Code,closed.Body.String())}
+	guardSaleBody:=fmt.Sprintf(`{"cash_session_id":%q,"items":[{"product_id":%q,"quantity":1}],"payments":[{"method":"cash","amount_cents":2500}]}`,openResult.ID,productID)
+	guardSale:=request(http.MethodPost,"/api/pos/sales",guardSaleBody)
+	if guardSale.Code!=http.StatusCreated{t.Fatalf("venda para teste de caixa fechado: status=%d body=%s",guardSale.Code,guardSale.Body.String())}
+	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":8400}`,openResult.ID))
+	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":8500`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento após estornos: status=%d body=%s",closed.Code,closed.Body.String())}
+	var guardSaleResult struct{ID string `json:"id"`}
+	if err:=json.Unmarshal(guardSale.Body.Bytes(),&guardSaleResult);err!=nil||guardSaleResult.ID==""{t.Fatalf("id da venda de proteção inválido: %v %s",err,guardSale.Body.String())}
+	closedCashRefund:=request(http.MethodPost,"/api/pos/sales/"+guardSaleResult.ID+"/refund",`{"reason":"Devolução após fechar caixa"}`)
+	if closedCashRefund.Code!=http.StatusConflict||!strings.Contains(closedCashRefund.Body.String(),"caixa"){t.Fatalf("estorno em dinheiro com caixa fechado deveria ser bloqueado: status=%d body=%s",closedCashRefund.Code,closedCashRefund.Body.String())}
 	list:=request(http.MethodGet,"/api/pos/sales?limit=20","")
 	if list.Code!=http.StatusOK||!strings.Contains(list.Body.String(),"sale_number"){t.Fatalf("listagem de vendas: status=%d body=%s",list.Code,list.Body.String())}
 }

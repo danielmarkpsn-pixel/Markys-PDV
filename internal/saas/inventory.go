@@ -33,7 +33,7 @@ func inventoryManager(w http.ResponseWriter, r *http.Request) (SessionIdentity, 
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Sessão inválida"})
 		return SessionIdentity{}, false
 	}
-	if id.Role != "owner" && id.Role != "admin" && id.Role != "manager" {
+	if id.Role != "owner" && id.Role != "admin" && id.Role != "manager" && id.Role != "stockkeeper" {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "Seu perfil não pode movimentar estoque"})
 		return SessionIdentity{}, false
 	}

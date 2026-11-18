@@ -55,7 +55,11 @@ jobs:
           sudo apt-get install -y postgresql-client
       - name: Apply SaaS foundation migration
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/0001_saas_access_foundation.sql
+      - name: Apply tenant commercial data migration
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/0002_tenant_commercial_data.sql
       - name: Verify license seats and single-session constraints
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/tests/0001_saas_access_foundation_test.sql
       - name: Verify tenant row-level security isolation
-        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/tests/0002_tenant_rls_isolation_test.sql
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/tests/0002_tenant_rls_isolation_test.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/postgres/tests/0003_tenant_commercial_data_test.sql

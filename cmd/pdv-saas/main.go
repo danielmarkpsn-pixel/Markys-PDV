@@ -38,6 +38,7 @@ func main() {
 	auth.Register(mux)
 	saas.NewTenantAdminHandler(db, auth).Register(mux)
 	saas.NewPlatformAdminHandler(db, strings.EqualFold(os.Getenv("SAAS_COOKIE_SECURE"), "true"), os.Getenv("SAAS_PLATFORM_BOOTSTRAP_TOKEN")).Register(mux)
+	saas.NewCustomerHandler(db, auth).Register(mux)
 	saas.NewCatalogHandler(db, auth).Register(mux)
 	saas.NewInventoryHandler(db, auth).Register(mux)
 	saas.NewPOSHandler(db, auth).Register(mux)

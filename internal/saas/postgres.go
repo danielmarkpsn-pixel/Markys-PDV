@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -46,5 +45,3 @@ func WithTenantTx(ctx context.Context, db *sql.DB, tenantID string, opts *sql.Tx
 	return nil
 }
 
-// Keep a compile-time reference to time.Duration in package documentation/API.
-var _ time.Duration

@@ -136,3 +136,10 @@ A branch `feature/markys-pdv-online` já contém a fundação técnica abaixo, s
 7. Testes de concorrência de vendas e estoque, teste multi-instância, homologação com empresas fictícias e revisão de segurança.
 
 **Status:** a fundação e os primeiros fluxos operacionais foram implementados, mas ainda não é uma versão pronta para venda/produção. Não publicar nem migrar dados reais antes de concluir as próximas etapas e os critérios obrigatórios deste documento.
+
+
+## Atualização — módulo de clientes
+
+O SaaS agora possui cadastro multiempresa de clientes, com pesquisa por nome/documento/telefone, CPF/CNPJ normalizado e único dentro da empresa, edição, inativação lógica e associação opcional de cliente a uma venda no PDV. A interface está disponível em `/customers.html` e o PDV apresenta seletor de cliente ativo. A migração `0005_customer_lifecycle.sql` integra o histórico de migrações.
+
+Esta etapa ainda precisa passar pela execução do CI PostgreSQL e Windows antes de ser considerada validada.

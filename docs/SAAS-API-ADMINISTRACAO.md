@@ -28,7 +28,7 @@ O número de logins contratados é somente leitura para o administrador da empre
 - O limite de tentativas atual é local à instância e cobre somente login da empresa, login da plataforma e bootstrap inicial (30 tentativas por IP em 5 minutos); as demais rotas não consomem esse limite. Para múltiplas instâncias, mover a contagem para Redis/gateway.
 - O console e a API do administrador da plataforma já provisionam empresas, planos e limites; ainda faltam MFA, auditoria global dedicada e recuperação segura de acesso.
 - Os testes de integração HTTP cobrem administração de usuários e estoque; ainda faltam cenários de concorrência em venda/caixa, cobrança e restauração de backup.
-- Os módulos de PDV e a interface web ainda não foram conectados a esta API.
+- A interface web inicial já está conectada à autenticação, administração, catálogo e estoque. O fluxo transacional de PDV ainda não foi conectado.
 - Não publicar em produção antes de completar os itens acima e configurar HTTPS, origem confiável/proxy, segredo de sessão e credenciais PostgreSQL.
 
 ## Administrador da plataforma
@@ -48,7 +48,7 @@ Antes do primeiro uso, configure o segredo forte `SAAS_PLATFORM_BOOTSTRAP_TOKEN`
 
 O limite de logins é controlado exclusivamente pela API da plataforma e também pelo gatilho PostgreSQL no momento de criação/reativação de usuários. O endpoint de administração da empresa continua somente leitura para licença.
 
-A criação de planos e empresas já está disponível na API, mas ainda não existe painel visual da plataforma. O bootstrap deve ser feito por cliente HTTP seguro, sem expor o segredo no navegador ou em código-fonte. O segredo precisa ser removido imediatamente após o bootstrap. Ainda são necessários controles operacionais adicionais (auditoria global dedicada, MFA, recuperação segura de acesso e política de rotação de segredos) antes de uso comercial em produção.
+O console visual da plataforma está disponível em `/plataforma.html` e consome essas APIs. O bootstrap inicial deve ser feito em ambiente controlado: configure o segredo forte no servidor, use o formulário protegido apenas durante a criação do primeiro administrador e remova a variável `SAAS_PLATFORM_BOOTSTRAP_TOKEN` imediatamente após o bootstrap. Ainda são necessários controles operacionais adicionais (auditoria global dedicada, MFA, recuperação segura de acesso e política de rotação de segredos) antes de uso comercial em produção.
 
 ## Catálogo da empresa (API)
 

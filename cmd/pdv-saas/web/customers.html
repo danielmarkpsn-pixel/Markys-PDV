@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clientes | MARKYS PDV</title>
+<style>
+:root{font-family:Inter,Arial,sans-serif;color:#182536;background:#f3f6fa}*{box-sizing:border-box}body{margin:0;padding:28px}.wrap{max-width:1180px;margin:auto}.top,.panel{background:#fff;border:1px solid #e3eaf2;border-radius:14px;padding:22px;margin-bottom:18px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px}.top h1{margin:0 0 6px;font-size:25px}.muted{color:#718096;font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}.field{display:block;font-size:11px;font-weight:700;color:#64748b}.field input{display:block;width:100%;margin-top:7px;padding:12px;border:1px solid #d8e0ea;border-radius:8px;font-size:14px}.actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}button,.link{border:0;border-radius:8px;padding:11px 15px;background:#1769d2;color:#fff;font-weight:700;cursor:pointer;text-decoration:none;font-size:12px}.secondary{background:#eaf0f7;color:#334155}.danger{background:#fff0f0;color:#b42318}.bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.bar input{padding:11px;border:1px solid #d8e0ea;border-radius:8px;min-width:250px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid #edf1f5}th{font-size:10px;color:#64748b}.tag{font-size:10px;font-weight:700;color:#087443;background:#e8f7ef;padding:5px 8px;border-radius:20px}.off{color:#a33;background:#fff0f0}.tablewrap{overflow:auto}#message{margin-top:10px;font-size:12px;color:#b42318}.hidden{display:none}@media(max-width:600px){body{padding:12px}.top{align-items:flex-start;flex-direction:column}}
+</style></head><body><div class="wrap">
+<div class="top"><div><h1>CLIENTES</h1><div class="muted">CADASTRO E RELACIONAMENTO COM CLIENTES DA EMPRESA</div></div><a class="link" href="/">VOLTAR AO MARKYS PDV</a></div>
+<div class="panel"><h2 id="formTitle">NOVO CLIENTE</h2><p class="muted">CPF/CNPJ é armazenado somente com números e não se repete dentro da empresa.</p>
+<form id="form"><input type="hidden" id="id"><div class="grid">
+<label class="field">NOME / RAZÃO SOCIAL<input id="name" required maxlength="180"></label>
+<label class="field">CPF / CNPJ<input id="document" maxlength="18"></label>
+<label class="field">TELEFONE<input id="phone" maxlength="40"></label>
+<label class="field">E-MAIL<input id="email" type="email" maxlength="180"></label>
+<label class="field">ENDEREÇO<input id="address" maxlength="500"></label></div>
+<div class="actions"><button type="submit" id="save">CADASTRAR CLIENTE</button><button type="button" class="secondary hidden" id="cancel">CANCELAR EDIÇÃO</button></div><div id="message"></div></form></div>
+<div class="panel"><div class="bar"><div><h2>CLIENTES CADASTRADOS</h2><p class="muted">Registros associados a vendas são inativados, nunca apagados.</p></div><input id="search" placeholder="Pesquisar nome, CPF/CNPJ ou telefone"></div>
+<div class="tablewrap"><table><thead><tr><th>NOME</th><th>CPF/CNPJ</th><th>TELEFONE</th><th>E-MAIL</th><th>SITUAÇÃO</th><th>AÇÕES</th></tr></thead><tbody id="rows"></tbody></table></div></div>
+</div><script>
+const $=id=>document.getElementById(id);let customers=[];
+async function api(path,options={}){const r=await fetch(path,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.error||'Falha na operação');return d}
+function msg(s){$('message').textContent=s}
+function reset(){ $('form').reset();$('id').value='';$('formTitle').textContent='NOVO CLIENTE';$('save').textContent='CADASTRAR CLIENTE';$('cancel').classList.add('hidden');msg('')}
+function render(){const q=$('search').value.toLowerCase();const items=customers.filter(c=>(c.name+' '+c.document+' '+c.phone+' '+c.email).toLowerCase().includes(q));$('rows').innerHTML=items.map(c=>'<tr><td><b>'+esc(c.name)+'</b><br><small>'+esc(c.address||'')+'</small></td><td>'+esc(c.document||'—')+'</td><td>'+esc(c.phone||'—')+'</td><td>'+esc(c.email||'—')+'</td><td><span class="tag '+(c.active?'':'off')+'">'+(c.active?'ATIVO':'INATIVO')+'</span></td><td>'+(c.active?'<button class="secondary" onclick="edit(\\''+c.id+'\\')">EDITAR</button> <button class="danger" onclick="deactivate(\\''+c.id+'\\')">INATIVAR</button>':'—')+'</td></tr>').join('')||'<tr><td colspan="6">Nenhum cliente encontrado.</td></tr>'}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function load(){try{const d=await api('/api/customers');customers=d.customers||[];render()}catch(e){msg(e.message)}}
+window.edit=id=>{const c=customers.find(x=>x.id===id);if(!c)return;$('id').value=c.id;$('name').value=c.name;$('document').value=c.document;$('phone').value=c.phone;$('email').value=c.email;$('address').value=c.address;$('formTitle').textContent='EDITAR CLIENTE';$('save').textContent='SALVAR ALTERAÇÕES';$('cancel').classList.remove('hidden');window.scrollTo({top:0,behavior:'smooth'})};
+window.deactivate=async id=>{if(!confirm('Confirma a inativação deste cliente?'))return;try{await api('/api/customers/'+id,{method:'DELETE',body:'{}'});await load()}catch(e){msg(e.message)}};
+$('form').addEventListener('submit',async e=>{e.preventDefault();const id=$('id').value;const body={name:$('name').value,document:$('document').value,phone:$('phone').value,email:$('email').value,address:$('address').value};try{await api(id?'/api/customers/'+id:'/api/customers',{method:id?'PUT':'POST',body:JSON.stringify(body)});reset();await load()}catch(e){msg(e.message)}});
+$('cancel').addEventListener('click',reset);$('search').addEventListener('input',render);load();
+</script></body></html>

@@ -70,3 +70,15 @@ O executável `cmd/pdv-saas` agora serve os arquivos estáticos embutidos em `cm
 - `/plataforma.html`: console do administrador global para bootstrap inicial, planos e provisionamento/gestão de empresas.
 
 A interface usa os endpoints descritos neste documento e mantém o login em cookies HttpOnly. O fluxo visual inicial de venda/PDV e caixa já foi conectado. Ainda faltam clientes na tela de venda, pagamento dividido/troco, cancelamento e estorno, compras, fiscal e integrações. Portanto, esta entrega é a primeira interface de acesso e cadastros SaaS, não uma versão completa pronta para operação comercial.
+
+
+## Clientes da empresa (API e interface)
+
+- `GET /api/customers?q=`: pesquisa por nome, CPF/CNPJ ou telefone; retorna até 300 registros da empresa autenticada.
+- `POST /api/customers`: cadastra nome, CPF/CNPJ, telefone, e-mail e endereço. CPF/CNPJ é normalizado para dígitos e único dentro do tenant.
+- `PUT /api/customers/{id}`: atualiza os dados cadastrais do cliente ativo.
+- `DELETE /api/customers/{id}`: realiza inativação lógica, preservando vendas e histórico.
+- Consultas exigem sessão; cadastro, edição e inativação exigem `owner`, `admin` ou `manager`.
+- O PDV permite associar um cliente ativo à venda; cliente inativo não pode ser usado em nova venda. Consumidor final continua disponível sem cadastro.
+- A migração `0005_customer_lifecycle.sql` adiciona situação e data de atualização e índice de pesquisa.
+- A tela `/customers.html` oferece cadastro, pesquisa, edição e inativação.

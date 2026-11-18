@@ -62,8 +62,16 @@ func TestPOSCashAndSaleHTTPIntegration(t *testing.T) {
 	splitBody:=fmt.Sprintf(`{"cash_session_id":%q,"items":[{"product_id":%q,"quantity":1}],"payments":[{"method":"cash","amount_cents":1000,"received_cents":1500},{"method":"pix","amount_cents":1500,"received_cents":1500}]}`,openResult.ID,productID)
 	splitSale:=request(http.MethodPost,"/api/pos/sales",splitBody)
 	if splitSale.Code!=http.StatusCreated||!strings.Contains(splitSale.Body.String(),`"change_cents":500`){t.Fatalf("venda com pagamento dividido e troco: status=%d body=%s",splitSale.Code,splitSale.Body.String())}
-	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":10900}`,openResult.ID))
-	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":11000`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento: status=%d body=%s",closed.Code,closed.Body.String())}
+	var splitResult struct{ID string `json:"id"`}
+	if err:=json.Unmarshal(splitSale.Body.Bytes(),&splitResult);err!=nil||splitResult.ID==""{t.Fatalf("id da venda dividida inválido: %v %s",err,splitSale.Body.String())}
+	refund:=request(http.MethodPost,"/api/pos/sales/"+splitResult.ID+"/refund",`{"reason":"Cliente desistiu da compra"}`)
+	if refund.Code!=http.StatusOK||!strings.Contains(refund.Body.String(),`"status":"refunded"`){t.Fatalf("estorno integral: status=%d body=%s",refund.Code,refund.Body.String())}
+	duplicateRefund:=request(http.MethodPost,"/api/pos/sales/"+splitResult.ID+"/refund",`{"reason":"Tentativa duplicada de estorno"}`)
+	if duplicateRefund.Code!=http.StatusConflict{t.Fatalf("estorno duplicado deveria ser bloqueado: status=%d body=%s",duplicateRefund.Code,duplicateRefund.Body.String())}
+	if err:=db.QueryRowContext(ctx,"SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,productID).Scan(&stock);err!=nil{t.Fatal(err)}
+	if stock!=8{t.Fatalf("estoque deveria retornar a 8 após estorno, recebido %v",stock)}
+	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":9900}`,openResult.ID))
+	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":10000`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento após estorno: status=%d body=%s",closed.Code,closed.Body.String())}
 	list:=request(http.MethodGet,"/api/pos/sales?limit=20","")
 	if list.Code!=http.StatusOK||!strings.Contains(list.Body.String(),"sale_number"){t.Fatalf("listagem de vendas: status=%d body=%s",list.Code,list.Body.String())}
 }

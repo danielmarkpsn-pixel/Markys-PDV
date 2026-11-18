@@ -25,7 +25,7 @@ O número de logins contratados é somente leitura para o administrador da empre
 
 - As operações de leitura/escrita de usuários usam transação com `app.tenant_id` para respeitar RLS.
 - A identidade do tenant vem da sessão validada, nunca de parâmetro enviado pelo navegador.
-- O limite de tentativas atual é local à instância. Para múltiplas instâncias, mover a contagem para Redis/gateway.
+- O limite de tentativas atual é local à instância e cobre somente login da empresa, login da plataforma e bootstrap inicial (30 tentativas por IP em 5 minutos); as demais rotas não consomem esse limite. Para múltiplas instâncias, mover a contagem para Redis/gateway.
 - Ainda falta autenticação e API do administrador da plataforma para provisionar empresas, criar o primeiro proprietário, ativar contratos e alterar `seat_limit`.
 - Ainda faltam testes HTTP de integração contra PostgreSQL para fluxo completo de login, criação de usuários, limite concorrente e substituição de sessão.
 - Os módulos de PDV e a interface web ainda não foram conectados a esta API.

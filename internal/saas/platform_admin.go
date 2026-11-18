@@ -158,6 +158,12 @@ func (h *PlatformAdminHandler) tenantByID(w http.ResponseWriter,r *http.Request)
 	tx,err:=h.DB.BeginTx(r.Context(),nil);if err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível iniciar alteração"});return};defer tx.Rollback()
 	var exists bool;if err=tx.QueryRowContext(r.Context(),"SELECT EXISTS(SELECT 1 FROM tenants WHERE id=$1::uuid)",id).Scan(&exists);err!=nil||!exists{writeJSON(w,404,map[string]string{"error":"Empresa não encontrada"});return}
 	if in.Status!=nil {_,err=tx.ExecContext(r.Context(),"UPDATE tenants SET status=$2,updated_at=now() WHERE id=$1::uuid",id,*in.Status)}
+	if err==nil&&in.SeatLimit!=nil {
+		var activeUsers int
+		if err=tx.QueryRowContext(r.Context(),"SELECT count(*) FROM tenant_users WHERE tenant_id=$1::uuid AND active=true",id).Scan(&activeUsers); err==nil && *in.SeatLimit<activeUsers {
+			writeJSON(w,409,map[string]string{"error":"O novo limite não pode ser menor que a quantidade de logins ativos"}); return
+		}
+	}
 	if err==nil&&(in.SubscriptionStatus!=nil||in.SeatLimit!=nil) {_,err=tx.ExecContext(r.Context(),"UPDATE tenant_subscriptions SET status=COALESCE($2,status),seat_limit=COALESCE($3,seat_limit),updated_at=now() WHERE tenant_id=$1::uuid",id,in.SubscriptionStatus,in.SeatLimit)}
 	if err!=nil {writeJSON(w,409,map[string]string{"error":"Não foi possível atualizar empresa ou licença"});return}
 	if err=tx.Commit();err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível concluir alteração"});return}

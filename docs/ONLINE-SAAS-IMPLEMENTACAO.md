@@ -111,3 +111,28 @@ A integração de cobrança (por exemplo, um provedor brasileiro) deve ficar atr
 - Cobrança real antes da escolha e homologação do provedor.
 
 Esses itens podem ser avaliados em etapas futuras, sem comprometer a separação entre as duas edições.
+
+## Estado atual da implementação SaaS
+
+A branch `feature/markys-pdv-online` já contém a fundação técnica abaixo, sem alterar a edição desktop:
+- PostgreSQL isolado, migrações versionadas e RLS por empresa.
+- Login por empresa, senha com PBKDF2, sessão persistente e substituição de sessão anterior no novo login.
+- Limite de logins contratado aplicado no banco; administração da empresa não altera esse limite.
+- Console inicial do administrador da plataforma para planos, empresas, suspensão/reativação e gestão de assentos.
+- Interface inicial da empresa com catálogo de produtos, categorias e fornecedores.
+- Estoque com entradas, saídas, contagem, histórico, lotes e validade; saídas não podem gerar saldo negativo.
+- Caixa por terminal, com um único caixa aberto por terminal e reconciliação no fechamento.
+- Venda inicial transacional, pagamento integral em uma forma, baixa de estoque e baixa FEFO para produtos por lote.
+- Testes unitários e testes de integração PostgreSQL para administração, estoque, caixa e vendas.
+
+## Próximas etapas ainda necessárias
+
+1. Cadastro e gestão visual de clientes, edição completa de fornecedores e produtos, e importação controlada de catálogo.
+2. Pagamento dividido, troco, desconto autorizado, cancelamento/estorno, devolução e sangria/suprimento de caixa.
+3. Compras e recebimento de mercadorias, com entrada de estoque e atualização de custo.
+4. Relatórios gerenciais, fechamento detalhado, auditoria de operações e exportação.
+5. Emissão fiscal e integrações de balança, leitor e meios de pagamento, conforme homologação.
+6. MFA, recuperação segura do administrador, auditoria global, rate limit distribuído, backups e restauração testada.
+7. Testes de concorrência de vendas e estoque, teste multi-instância, homologação com empresas fictícias e revisão de segurança.
+
+**Status:** a fundação e os primeiros fluxos operacionais foram implementados, mas ainda não é uma versão pronta para venda/produção. Não publicar nem migrar dados reais antes de concluir as próximas etapas e os critérios obrigatórios deste documento.

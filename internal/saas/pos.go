@@ -47,7 +47,7 @@ func (h *POSHandler) cashStatus(w http.ResponseWriter,r *http.Request){
 			FROM tenant_cash_sessions WHERE tenant_id=$1::uuid AND status='open'
 			AND ($2='' OR terminal_code=$2) ORDER BY opened_at DESC LIMIT 1`,id.TenantID,terminal).Scan(&x.ID,&x.TerminalCode,&x.OpeningAmountCents,&x.OpenedAt)
 		if err==sql.ErrNoRows{return nil};if err!=nil{return err}
-		err=tx.QueryRowContext(r.Context(),`SELECT $2 + COALESCE(SUM(p.amount_cents) FILTER (WHERE p.method='cash'),0)
+		err=tx.QueryRowContext(r.Context(),`SELECT $2::bigint + COALESCE(SUM(p.amount_cents) FILTER (WHERE p.method='cash'),0)::bigint
 			FROM tenant_payments p JOIN tenant_sales s ON s.tenant_id=p.tenant_id AND s.id=p.sale_id
 			WHERE s.tenant_id=$1::uuid AND s.cash_session_id=$3::uuid AND s.status='completed'`,id.TenantID,x.OpeningAmountCents,x.ID).Scan(&x.ExpectedCashCents)
 		if err!=nil{return err};session=&x;return nil
@@ -81,7 +81,7 @@ func (h *POSHandler) closeCash(w http.ResponseWriter,r *http.Request){
 	err:=WithTenantTx(r.Context(),h.DB,id.TenantID,nil,func(tx *sql.Tx)error{
 		var opening int64
 		if err:=tx.QueryRowContext(r.Context(),`SELECT opening_amount_cents FROM tenant_cash_sessions WHERE tenant_id=$1::uuid AND id=$2::uuid AND status='open' FOR UPDATE`,id.TenantID,in.SessionID).Scan(&opening);err!=nil{return err}
-		if err:=tx.QueryRowContext(r.Context(),`SELECT $2 + COALESCE(SUM(p.amount_cents) FILTER (WHERE p.method='cash'),0)
+		if err:=tx.QueryRowContext(r.Context(),`SELECT $2::bigint + COALESCE(SUM(p.amount_cents) FILTER (WHERE p.method='cash'),0)::bigint
 			FROM tenant_payments p JOIN tenant_sales s ON s.tenant_id=p.tenant_id AND s.id=p.sale_id
 			WHERE s.tenant_id=$1::uuid AND s.cash_session_id=$3::uuid AND s.status='completed'`,id.TenantID,opening,in.SessionID).Scan(&expected);err!=nil{return err}
 		difference:=in.ClosingAmountCents-expected
@@ -201,4 +201,3 @@ func (h *POSHandler) createSale(w http.ResponseWriter,r *http.Request,id Session
 	writeJSON(w,201,map[string]any{"id":saleID,"sale_number":saleNumber,"status":"completed","subtotal_cents":subtotal,"discount_cents":discount,"total_cents":total})
 }
 
-var _ = fmt.Sprintf

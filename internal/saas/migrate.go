@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	postgresmigrations "example.com/markys-pdv/migrations/postgres"
 )
@@ -30,7 +31,7 @@ func ApplyMigrations(ctx context.Context, db *sql.DB) error {
 	entries, err := postgresmigrations.FS.ReadDir(".")
 	if err != nil { return fmt.Errorf("listar migrações embutidas: %w", err) }
 	for _, entry := range entries {
-		if entry.IsDir() || len(entry.Name()) < 5 || entry.Name()[0:4] != "0001" { continue }
+		if entry.IsDir() || len(entry.Name()) < 6 || entry.Name()[4] != '_' || strings.Trim(entry.Name()[:4], "0123456789") != "" { continue }
 		var exists bool
 		err := conn.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version = $1)", entry.Name()).Scan(&exists)
 		if err != nil { return fmt.Errorf("consultar migração %s: %w", entry.Name(), err) }

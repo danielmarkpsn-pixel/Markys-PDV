@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"markys-pdv/internal/saas"
+	"example.com/markys-pdv/internal/saas"
 )
 
 func main() {

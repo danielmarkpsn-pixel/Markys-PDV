@@ -63,3 +63,23 @@ Os caminhos são uma especificação inicial; devem ser harmonizados com o rotea
 ## Estado desta entrega
 
 A branch agora contém o driver PostgreSQL isolado, configuração explícita de conexão, executor controlado e idempotente de migrations, contexto RLS transacional e serviço de autenticação de credenciais com PBKDF2-SHA256 compatível com os hashes existentes e criação/validação/revogação de sessões persistentes. O serviço substitui a sessão anterior do mesmo usuário na mesma transação e armazena somente SHA-256 do token. Os testes de CI verificam a migration via Go, limite de vagas, sessão única e isolamento RLS com role sem SUPERUSER/BYPASSRLS. Ainda não há integração dessas rotinas com as rotas HTTP e o fluxo de login do PDV; o runtime comercial segue SQLite. Não publicar como SaaS nem conectar banco de produção até concluir autenticação por senha, autorização, camada de dados multi-tenant e integração das rotas.
+
+
+## Implementação HTTP inicial (18/11/2026)
+
+Foi criado o executável isolado `cmd/pdv-saas`, que exige `SAAS_MODE=postgres` e não abre nem utiliza SQLite. Ele disponibiliza inicialmente:
+
+- `POST /api/auth/login`: recebe `company_document`, `username` e `password`; resolve a empresa no servidor pelo CPF/CNPJ normalizado e valida a assinatura antes de autenticar.
+- `GET /api/auth/status`: valida o cookie persistente e retorna a identidade autenticada.
+- `POST /api/auth/logout`: revoga a sessão persistente e limpa o cookie.
+- `GET /api/health`: informa a saúde básica da API e o backend PostgreSQL.
+
+O cookie `markys_session` é HttpOnly, SameSite=Lax e recebe Secure quando `SAAS_COOKIE_SECURE=true`. O padrão de validade da sessão é 12 horas. O middleware `RequireSession` valida o token no PostgreSQL e disponibiliza a identidade confiável do tenant no contexto da requisição. Quando a sessão foi substituída, a API responde HTTP 401 com a mensagem aprovada para o dispositivo anterior.
+
+### Execução isolada
+
+Configure `SAAS_MODE=postgres`, `DATABASE_URL`, `SAAS_COOKIE_SECURE=true` em produção e, quando a aplicação for responsável por aplicar migrations, `SAAS_MIGRATE=true`. Inicie com `go run ./cmd/pdv-saas`. A porta padrão é 8080 e pode ser alterada por `SAAS_ADDR`.
+
+### Limite atual
+
+Esta entrega disponibiliza a API de autenticação, mas ainda não conecta os módulos comerciais (produtos, estoque, clientes, vendas, caixa e relatórios) ao PostgreSQL. O executável SaaS ainda não entrega a interface web do PDV nem deve ser publicado como sistema comercial completo. A versão desktop e seu executável SQLite permanecem separados. Antes de produção, também será necessário aplicar rate limit no login, configurar a role PostgreSQL de runtime sem privilégios de proprietário/BYPASSRLS e completar testes HTTP integrados com banco.

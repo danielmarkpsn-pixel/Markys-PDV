@@ -24,15 +24,19 @@ jobs:
           import subprocess
           from pathlib import Path
 
-          html = Path("cmd/pdv/web/index.html").read_text(encoding="utf-8")
-          scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, flags=re.IGNORECASE | re.DOTALL)
-          if not scripts:
-              raise SystemExit("Nenhum script inline encontrado em index.html")
-          for index, script in enumerate(scripts):
-              path = Path(f"/tmp/markys-inline-{index}.js")
-              path.write_text(script, encoding="utf-8")
-              subprocess.run(["node", "--check", str(path)], check=True)
-          print(f"JavaScript validado: {len(scripts)} bloco(s)")
+          html_files = [Path("cmd/pdv/web/index.html"), *Path("cmd/pdv-saas/web").glob("*.html")]
+          total = 0
+          for html_file in html_files:
+              html = html_file.read_text(encoding="utf-8")
+              scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, flags=re.IGNORECASE | re.DOTALL)
+              for index, script in enumerate(scripts):
+                  path = Path(f"/tmp/{html_file.stem}-inline-{index}.js")
+                  path.write_text(script, encoding="utf-8")
+                  subprocess.run(["node", "--check", str(path)], check=True)
+              total += len(scripts)
+          if total == 0:
+              raise SystemExit("Nenhum script inline encontrado")
+          print(f"JavaScript validado: {total} bloco(s) em {len(html_files)} páginas")
           PY
       - name: Test
         run: go test ./...

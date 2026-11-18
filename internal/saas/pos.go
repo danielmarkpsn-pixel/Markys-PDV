@@ -2,7 +2,6 @@ package saas
 
 import (
 	"database/sql"
-	"fmt"
 	"math"
 	"net/http"
 	"strconv"

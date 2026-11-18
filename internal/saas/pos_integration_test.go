@@ -59,8 +59,11 @@ func TestPOSCashAndSaleHTTPIntegration(t *testing.T) {
 	var stock float64
 	if err:=db.QueryRowContext(ctx,"SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,productID).Scan(&stock);err!=nil{t.Fatal(err)}
 	if stock!=8{t.Fatalf("estoque esperado 8 após venda, recebido %v",stock)}
-	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":9900}`,openResult.ID))
-	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":10000`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento: status=%d body=%s",closed.Code,closed.Body.String())}
+	splitBody:=fmt.Sprintf(`{"cash_session_id":%q,"items":[{"product_id":%q,"quantity":1}],"payments":[{"method":"cash","amount_cents":1000,"received_cents":1500},{"method":"pix","amount_cents":1500,"received_cents":1500}]}`,openResult.ID,productID)
+	splitSale:=request(http.MethodPost,"/api/pos/sales",splitBody)
+	if splitSale.Code!=http.StatusCreated||!strings.Contains(splitSale.Body.String(),`"change_cents":500`){t.Fatalf("venda com pagamento dividido e troco: status=%d body=%s",splitSale.Code,splitSale.Body.String())}
+	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":10900}`,openResult.ID))
+	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":11000`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento: status=%d body=%s",closed.Code,closed.Body.String())}
 	list:=request(http.MethodGet,"/api/pos/sales?limit=20","")
 	if list.Code!=http.StatusOK||!strings.Contains(list.Body.String(),"sale_number"){t.Fatalf("listagem de vendas: status=%d body=%s",list.Code,list.Body.String())}
 }

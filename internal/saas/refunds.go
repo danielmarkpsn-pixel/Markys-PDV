@@ -14,7 +14,10 @@ func (h *POSHandler) refundSale(w http.ResponseWriter, r *http.Request) {
  if r.Method != http.MethodPost { w.Header().Set("Allow",http.MethodPost); writeJSON(w,405,map[string]string{"error":"Método não permitido"}); return }
  id,ok:=posOperator(w,r); if !ok{return}
  if id.Role!="owner"&&id.Role!="admin"&&id.Role!="manager" { writeJSON(w,403,map[string]string{"error":"Seu perfil não pode estornar vendas"}); return }
- saleID:=strings.Trim(strings.TrimPrefix(r.URL.Path,"/api/pos/sales/"),"/")
+ route:=strings.TrimPrefix(r.URL.Path,"/api/pos/sales/")
+ if !strings.HasSuffix(route,"/refund") { writeJSON(w,404,map[string]string{"error":"Rota de estorno inválida"}); return }
+ saleID:=strings.TrimSuffix(route,"/refund")
+ saleID=strings.Trim(saleID,"/")
  if saleID==""||strings.Contains(saleID,"/"){writeJSON(w,404,map[string]string{"error":"Venda não encontrada"});return}
  var in struct{Reason string `json:"reason"`}
  if !decodeAuthJSON(w,r,&in){return};in.Reason=strings.TrimSpace(in.Reason)

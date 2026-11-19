@@ -49,12 +49,13 @@ func (h *POSHandler) refundSale(w http.ResponseWriter, r *http.Request) {
    VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5) RETURNING id::text`,id.TenantID,saleID,id.UserID,in.Reason,total).Scan(&refundID);err!=nil{return err}
   for _,m:=range movements{
    if m.Quantity>=0{return errRefundMovementMissing};restore:=-m.Quantity
+   // Keep the same product-before-lot lock order used by sales and inventory adjustments.
+   if _,err:=tx.ExecContext(r.Context(),`UPDATE tenant_products SET stock=stock+$3,updated_at=now() WHERE tenant_id=$1::uuid AND id=$2::uuid`,id.TenantID,m.ProductID,restore);err!=nil{return err}
    if m.ReferenceType=="lot"{
     if !m.ReferenceID.Valid{return errRefundMovementMissing}
     result,err:=tx.ExecContext(r.Context(),`UPDATE tenant_product_lots SET quantity=quantity+$4 WHERE tenant_id=$1::uuid AND product_id=$2::uuid AND id=$3::uuid`,id.TenantID,m.ProductID,m.ReferenceID.String,restore)
     if err!=nil{return err};n,err:=result.RowsAffected();if err!=nil{return err};if n!=1{return errRefundMovementMissing}
    }else if m.ReferenceType!="sale"||!m.ReferenceID.Valid||m.ReferenceID.String!=saleID{return errRefundMovementMissing}
-   if _,err:=tx.ExecContext(r.Context(),`UPDATE tenant_products SET stock=stock+$3,updated_at=now() WHERE tenant_id=$1::uuid AND id=$2::uuid`,id.TenantID,m.ProductID,restore);err!=nil{return err}
    var reference any
    if m.ReferenceID.Valid{reference=m.ReferenceID.String}
    if _,err:=tx.ExecContext(r.Context(),`INSERT INTO tenant_stock_movements(tenant_id,product_id,movement_type,quantity,reference_type,reference_id,user_id,note,sale_id)

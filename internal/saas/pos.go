@@ -186,7 +186,7 @@ func (h *POSHandler) createSale(w http.ResponseWriter,r *http.Request,id Session
 				if remaining>0.000001{return errInsufficientStock}
 			}else{
 				if _,err:=tx.ExecContext(r.Context(),`INSERT INTO tenant_stock_movements(tenant_id,product_id,movement_type,quantity,reference_type,reference_id,user_id,note,sale_id)
-					VALUES($1::uuid,$2::uuid,'sale',$3,'sale',$4::uuid,$5::uuid,$6,$7::uuid)`,id.TenantID,item.ProductID,-item.Quantity,saleID,id.UserID,"Venda "+saleNumber);err!=nil{return err}
+					VALUES($1::uuid,$2::uuid,'sale',$3,'sale',$4::uuid,$5::uuid,$6,$7::uuid)`,id.TenantID,item.ProductID,-item.Quantity,saleID,id.UserID,"Venda "+saleNumber,saleID);err!=nil{return err}
 			}
 			if _,err:=tx.ExecContext(r.Context(),`UPDATE tenant_products SET stock=stock-$3,updated_at=now() WHERE tenant_id=$1::uuid AND id=$2::uuid`,id.TenantID,item.ProductID,item.Quantity);err!=nil{return err}
 			if _,err:=tx.ExecContext(r.Context(),`INSERT INTO tenant_sale_items(tenant_id,sale_id,product_id,description,quantity,unit_price_cents,discount_cents,line_total_cents)

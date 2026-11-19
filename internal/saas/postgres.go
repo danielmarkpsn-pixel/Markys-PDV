@@ -51,10 +51,10 @@ func ValidateRuntimeRole(ctx context.Context, db *sql.DB) error {
 	err=db.QueryRowContext(ctx,`SELECT COALESCE(string_agg(c.relname,', ' ORDER BY c.relname),'')
 		FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
 		WHERE n.nspname='public' AND c.relkind IN ('r','p') AND c.relrowsecurity
-		AND pg_get_userbyid(c.relowner)=current_user`).Scan(&ownedTables)
+		AND (pg_get_userbyid(c.relowner)=current_user OR pg_has_role(current_user,c.relowner,'MEMBER'))`).Scan(&ownedTables)
 	if err != nil { return fmt.Errorf("validar propriedade das tabelas RLS: %w",err) }
 	if ownedTables!="" {
-		return fmt.Errorf("a role PostgreSQL runtime %q é proprietária de tabelas protegidas por RLS (%s); use uma role separada sem propriedade",roleName,ownedTables)
+		return fmt.Errorf("a role PostgreSQL runtime %q é proprietária de tabelas protegidas por RLS ou membro da role proprietária (%s); use uma role separada sem propriedade ou associação",roleName,ownedTables)
 	}
 	return nil
 }

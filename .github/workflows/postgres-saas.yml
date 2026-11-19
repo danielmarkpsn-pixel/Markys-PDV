@@ -6,7 +6,9 @@ on:
       - "migrations/postgres/**"
       - ".github/workflows/postgres-saas.yml"
       - "internal/saas/**"
+      - "cmd/pdv-saas/**"
       - "go.mod"
+      - "go.sum"
       - "go.sum"
   pull_request:
     paths:

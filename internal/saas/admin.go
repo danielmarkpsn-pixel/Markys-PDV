@@ -83,7 +83,8 @@ func (h *TenantAdminHandler) userByID(w http.ResponseWriter,r *http.Request) {
  if input.DisplayName==nil&&input.Email==nil&&input.Password==nil&&input.Role==nil&&input.Active==nil{writeJSON(w,400,map[string]string{"error":"Nenhuma alteração informada"});return}
  err:=WithTenantTx(r.Context(),h.DB,identity.TenantID,nil,func(tx *sql.Tx)error{
   var currentRole string
-  if err:=tx.QueryRowContext(r.Context(),"SELECT role FROM tenant_users WHERE tenant_id=$1::uuid AND id=$2::uuid FOR UPDATE",identity.TenantID,id).Scan(&currentRole);err!=nil{return err}
+  var currentActive bool
+  if err:=tx.QueryRowContext(r.Context(),"SELECT role,active FROM tenant_users WHERE tenant_id=$1::uuid AND id=$2::uuid FOR UPDATE",identity.TenantID,id).Scan(&currentRole,&currentActive);err!=nil{return err}
   if currentRole=="owner" {return errProtectedOwner}
   if input.Role!=nil {role:=strings.ToLower(strings.TrimSpace(*input.Role));if role!="admin"&&role!="manager"&&role!="cashier"&&role!="stockkeeper"{return errInvalidRole};input.Role=&role}
   if input.DisplayName!=nil {v:=strings.TrimSpace(*input.DisplayName);if v==""{return errInvalidUserInput};input.DisplayName=&v}
@@ -94,7 +95,7 @@ func (h *TenantAdminHandler) userByID(w http.ResponseWriter,r *http.Request) {
   // Password resets and deactivation must permanently revoke existing sessions.
   // Merely checking active/password state would allow an old session to revive
   // if the account were reactivated before that session expired.
-  if input.Password!=nil || (input.Active!=nil && !*input.Active) {
+  if input.Password!=nil || (input.Active!=nil && *input.Active!=currentActive) {
    _,err=tx.ExecContext(r.Context(),`UPDATE tenant_sessions SET revoked_at=now()
     WHERE tenant_id=$1::uuid AND user_id=$2::uuid AND revoked_at IS NULL`,identity.TenantID,id)
   }

@@ -83,7 +83,7 @@ func (h *POSHandler) refundSale(w http.ResponseWriter, r *http.Request) {
   switch err{case sql.ErrNoRows:writeJSON(w,404,map[string]string{"error":"Venda não encontrada"})
   case errInvalidUserInput:writeJSON(w,409,map[string]string{"error":"A venda não está concluída ou os pagamentos não conferem"})
   case errRefundMovementMissing:writeJSON(w,409,map[string]string{"error":"Esta venda não possui rastreabilidade completa de estoque para estorno seguro"})
-  case errRefundCashSessionClosed:writeJSON(w,409,map[string]string{"error":"O caixa desta venda está fechado. Reabra um caixa autorizado antes de devolver valores em dinheiro."})
+  case errRefundCashSessionClosed:writeJSON(w,409,map[string]string{"error":"O caixa original desta venda está fechado. A devolução em dinheiro exige procedimento financeiro manual autorizado; a venda e o estoque não foram alterados."})
   default:writeJSON(w,409,map[string]string{"error":"Estorno não realizado; a operação foi revertida integralmente"})}
   return
  }

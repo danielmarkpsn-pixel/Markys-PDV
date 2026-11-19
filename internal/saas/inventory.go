@@ -133,6 +133,9 @@ func (h *InventoryHandler) adjust(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w,400,map[string]string{"error":"Informe produto, tipo de movimento e quantidade válida"});return
 	}
 	in.Quantity=math.Round(in.Quantity*1000)/1000
+	if in.MovementType!="count" && in.Quantity<=0 {
+		writeJSON(w,400,map[string]string{"error":"A quantidade deve ser maior que zero após o ajuste de precisão"});return
+	}
 	var expires any
 	if in.ExpiresOn!="" { parsed,err:=time.Parse("2006-01-02",in.ExpiresOn);if err!=nil{writeJSON(w,400,map[string]string{"error":"Validade deve usar AAAA-MM-DD"});return};expires=parsed }
 	var newID string

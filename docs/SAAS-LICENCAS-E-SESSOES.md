@@ -78,7 +78,7 @@ O cookie `markys_session` é HttpOnly, SameSite=Lax e recebe Secure quando `SAAS
 
 ### Execução isolada
 
-Configure `SAAS_MODE=postgres`, `DATABASE_URL`, `SAAS_COOKIE_SECURE=true` em produção e, quando a aplicação for responsável por aplicar migrations, `SAAS_MIGRATE=true`. Inicie com `go run ./cmd/pdv-saas`. A porta padrão é 8080 e pode ser alterada por `SAAS_ADDR`.
+Configure `SAAS_MODE=postgres`, `DATABASE_URL` e `SAAS_COOKIE_SECURE=true` em produção. `DATABASE_URL` deve usar uma role runtime dedicada, sem `SUPERUSER`, `BYPASSRLS`, associação a roles privilegiadas ou propriedade de tabelas protegidas por RLS; o serviço valida isso na inicialização e recusa iniciar com credenciais inseguras. Se a aplicação também executar migrations, configure `SAAS_MIGRATE=true` e `SAAS_MIGRATION_DATABASE_URL` com uma credencial separada que tenha privilégios de migração. Nunca use a credencial de migração em `DATABASE_URL`. Inicie com `go run ./cmd/pdv-saas`. A porta padrão é 8080 e pode ser alterada por `SAAS_ADDR`.
 
 ### Limite atual
 

@@ -126,6 +126,9 @@ func (h *POSHandler) createSale(w http.ResponseWriter,r *http.Request,id Session
 		in.Items[i].ProductID=strings.TrimSpace(in.Items[i].ProductID)
 		if in.Items[i].ProductID==""||math.IsNaN(in.Items[i].Quantity)||math.IsInf(in.Items[i].Quantity,0)||in.Items[i].Quantity<=0||in.Items[i].Quantity>1_000_000||in.Items[i].DiscountCents<0{writeJSON(w,400,map[string]string{"error":"Item ou quantidade inválida"});return}
 		in.Items[i].Quantity=math.Round(in.Items[i].Quantity*1000)/1000
+		if in.Items[i].Quantity<=0 {
+			writeJSON(w,400,map[string]string{"error":"A quantidade do item deve ser maior que zero após o ajuste de precisão"});return
+		}
 	}
 	paymentTotal:=int64(0)
 	cashChange:=int64(0)

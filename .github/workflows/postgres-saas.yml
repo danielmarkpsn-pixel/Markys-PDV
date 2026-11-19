@@ -57,10 +57,10 @@ jobs:
           from pathlib import Path
           import re
           source = Path("cmd/pdv-saas/web/index.html").read_text(encoding="utf-8")
-          scripts = re.findall(r"<script\\b[^>]*>(.*?)</script>", source, re.I | re.S)
+          scripts = re.findall(r"<script\b[^>]*>(.*?)</script>", source, re.I | re.S)
           if not scripts:
               raise SystemExit("Nenhum bloco JavaScript encontrado na interface SaaS")
-          Path("/tmp/markys-pdv-saas-ui.js").write_text("\\n".join(scripts), encoding="utf-8")
+          Path("/tmp/markys-pdv-saas-ui.js").write_text("\n".join(scripts), encoding="utf-8")
           PY
           node --check /tmp/markys-pdv-saas-ui.js
       - name: Install PostgreSQL client

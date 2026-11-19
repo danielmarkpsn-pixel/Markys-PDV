@@ -161,7 +161,7 @@ func (h *PlatformAdminHandler) tenants(w http.ResponseWriter,r *http.Request) {
 		if err==nil { err=tx.QueryRowContext(r.Context(),"INSERT INTO tenant_users(tenant_id,username,display_name,password_hash,role) VALUES($1::uuid,$2,$3,$4,'owner') RETURNING id::text",tenantID,in.OwnerUsername,in.OwnerName,hash).Scan(&userID) }
 		if err==nil {
 			_,err=tx.ExecContext(r.Context(),`INSERT INTO tenant_audit_events(tenant_id,event_type,entity_type,entity_id,details)
-				VALUES($1::uuid,'platform.tenant.created','tenant',$1,jsonb_build_object('platform_admin_id',$2,'seat_limit',$3,'plan_code',$4))`,tenantID,platformAdminIDFromContext(r.Context()),in.SeatLimit,in.PlanCode)
+				VALUES($1::uuid,'platform.tenant.created','tenant',$1,jsonb_build_object('platform_admin_id',$2::text,'seat_limit',$3::integer,'plan_code',$4::text))`,tenantID,platformAdminIDFromContext(r.Context()),in.SeatLimit,in.PlanCode)
 		}
 		if err!=nil { writeJSON(w,409,map[string]string{"error":"Empresa não criada: documento ou usuário duplicado, plano inválido ou falha de auditoria"}); return }
 		if err=tx.Commit(); err!=nil { writeJSON(w,500,map[string]string{"error":"Não foi possível concluir cadastro"}); return }
@@ -206,7 +206,7 @@ func (h *PlatformAdminHandler) tenantByID(w http.ResponseWriter,r *http.Request)
 		if in.SubscriptionStatus!=nil{subscriptionStatus=*in.SubscriptionStatus}
 		if in.SeatLimit!=nil{seatLimit=*in.SeatLimit}
 		_,err=tx.ExecContext(r.Context(),`INSERT INTO tenant_audit_events(tenant_id,event_type,entity_type,entity_id,details)
-			VALUES($1::uuid,'platform.tenant.updated','tenant',$1,jsonb_build_object('platform_admin_id',$2,'tenant_status',$3,'subscription_status',$4,'seat_limit',$5))`,
+			VALUES($1::uuid,'platform.tenant.updated','tenant',$1,jsonb_build_object('platform_admin_id',$2::text,'tenant_status',$3::text,'subscription_status',$4::text,'seat_limit',$5::integer))`,
 			id,platformAdminIDFromContext(r.Context()),tenantStatus,subscriptionStatus,seatLimit)
 	}
 	if err!=nil {writeJSON(w,409,map[string]string{"error":"Não foi possível atualizar empresa, licença, sessões ou auditoria"});return}

@@ -51,6 +51,8 @@ func TestInventoryHTTPIntegration(t *testing.T) {
 		mux.ServeHTTP(rec, req)
 		return rec
 	}
+	zeroPrecisionEntry := request(http.MethodPost, "/api/inventory/adjustments", fmt.Sprintf(`{"product_id":%q,"movement_type":"entry","quantity":0.0001,"note":"Quantidade abaixo da precisão"}`, standardID))
+	if zeroPrecisionEntry.Code != http.StatusBadRequest { t.Fatalf("entrada que arredonda para zero deveria ser recusada: status=%d body=%s", zeroPrecisionEntry.Code, zeroPrecisionEntry.Body.String()) }
 	entry := request(http.MethodPost, "/api/inventory/adjustments", fmt.Sprintf(`{"product_id":%q,"movement_type":"entry","quantity":10,"note":"Compra inicial"}`, standardID))
 	if entry.Code != http.StatusCreated { t.Fatalf("entrada: status=%d body=%s", entry.Code, entry.Body.String()) }
 	exit := request(http.MethodPost, "/api/inventory/adjustments", fmt.Sprintf(`{"product_id":%q,"movement_type":"exit","quantity":4,"note":"Saída teste"}`, standardID))

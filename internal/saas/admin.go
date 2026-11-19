@@ -90,6 +90,14 @@ func (h *TenantAdminHandler) userByID(w http.ResponseWriter,r *http.Request) {
   var hash any
   if input.Password!=nil {v,e:=HashPassword(*input.Password);if e!=nil{return e};hash=v}
   _,err:=tx.ExecContext(r.Context(),`UPDATE tenant_users SET display_name=COALESCE($3,display_name),email=COALESCE($4,email),role=COALESCE($5,role),active=COALESCE($6,active),password_hash=COALESCE($7,password_hash),updated_at=now() WHERE tenant_id=$1::uuid AND id=$2::uuid`,identity.TenantID,id,input.DisplayName,input.Email,input.Role,input.Active,hash)
+  if err!=nil{return err}
+  // Password resets and deactivation must permanently revoke existing sessions.
+  // Merely checking active/password state would allow an old session to revive
+  // if the account were reactivated before that session expired.
+  if input.Password!=nil || (input.Active!=nil && !*input.Active) {
+   _,err=tx.ExecContext(r.Context(),`UPDATE tenant_sessions SET revoked_at=now()
+    WHERE tenant_id=$1::uuid AND user_id=$2::uuid AND revoked_at IS NULL`,identity.TenantID,id)
+  }
   return err
  })
  if err!=nil {if err==errProtectedOwner{writeJSON(w,403,map[string]string{"error":"O usuário proprietário principal não pode ser alterado por este recurso"});return};if err==errInvalidRole||err==errInvalidUserInput{writeJSON(w,400,map[string]string{"error":"Dados de alteração inválidos"});return};if strings.Contains(err.Error(),"Limite de logins contratados"){writeJSON(w,409,map[string]string{"error":"Limite de logins contratados atingido"});return};writeJSON(w,404,map[string]string{"error":"Usuário não encontrado ou alteração não permitida"});return}

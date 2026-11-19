@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
+	"context"
 	"encoding/base64"
 	"net"
 	"net/http"
@@ -14,6 +15,13 @@ import (
 )
 
 const platformSessionCookie = "markys_platform_session"
+
+type platformAdminContextKey struct{}
+
+func platformAdminIDFromContext(ctx context.Context) string {
+	id, _ := ctx.Value(platformAdminContextKey{}).(string)
+	return id
+}
 
 type PlatformAdminHandler struct {
 	DB *sql.DB
@@ -84,7 +92,8 @@ func (h *PlatformAdminHandler) requireSession(next http.Handler) http.Handler {
 		digest:=sha256.Sum256([]byte(cookie.Value)); var id,name string
 		err=h.DB.QueryRowContext(r.Context(),"SELECT a.id::text,a.display_name FROM platform_admin_sessions s JOIN platform_admins a ON a.id=s.admin_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND a.active=true",digest[:]).Scan(&id,&name)
 		if err!=nil { clearPlatformCookie(w,h.CookieSecure); writeJSON(w,401,map[string]string{"error":"Sessão de plataforma inválida ou expirada"}); return }
-		next.ServeHTTP(w,r)
+		ctx:=context.WithValue(r.Context(),platformAdminContextKey{},id)
+		next.ServeHTTP(w,r.WithContext(ctx))
 	})
 }
 
@@ -122,12 +131,22 @@ func (h *PlatformAdminHandler) plans(w http.ResponseWriter,r *http.Request) {
 func (h *PlatformAdminHandler) tenants(w http.ResponseWriter,r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		rows,err:=h.DB.QueryContext(r.Context(),`SELECT t.id::text,t.legal_name,t.display_name,t.document,t.status,s.status,s.seat_limit,p.code,
-			(SELECT count(*) FROM tenant_users u WHERE u.tenant_id=t.id AND u.active=true)
+		rows,err:=h.DB.QueryContext(r.Context(),`SELECT t.id::text,t.legal_name,t.display_name,t.document,t.status,s.status,s.seat_limit,p.code
 			FROM tenants t JOIN tenant_subscriptions s ON s.tenant_id=t.id LEFT JOIN saas_plans p ON p.id=s.plan_id ORDER BY t.created_at DESC`)
-		if err!=nil { writeJSON(w,500,map[string]string{"error":"Não foi possível listar empresas"}); return }; defer rows.Close()
+		if err!=nil { writeJSON(w,500,map[string]string{"error":"Não foi possível listar empresas"}); return }
 		type tenant struct { ID string `json:"id"`; LegalName string `json:"legal_name"`; DisplayName string `json:"display_name"`; Document string `json:"document"`; Status string `json:"status"`; SubscriptionStatus string `json:"subscription_status"`; SeatLimit int `json:"seat_limit"`; PlanCode sql.NullString `json:"-"`; Plan *string `json:"plan_code"`; ActiveUsers int `json:"active_users"` }
-		items:=[]tenant{}; for rows.Next(){ var x tenant; if rows.Scan(&x.ID,&x.LegalName,&x.DisplayName,&x.Document,&x.Status,&x.SubscriptionStatus,&x.SeatLimit,&x.PlanCode,&x.ActiveUsers)!=nil { writeJSON(w,500,map[string]string{"error":"Falha ao ler empresas"}); return }; if x.PlanCode.Valid { v:=x.PlanCode.String; x.Plan=&v }; items=append(items,x) }; writeJSON(w,200,map[string]any{"tenants":items})
+		items:=[]tenant{}
+		for rows.Next(){ var x tenant; if err:=rows.Scan(&x.ID,&x.LegalName,&x.DisplayName,&x.Document,&x.Status,&x.SubscriptionStatus,&x.SeatLimit,&x.PlanCode); err!=nil { rows.Close(); writeJSON(w,500,map[string]string{"error":"Falha ao ler empresas"}); return }; if x.PlanCode.Valid { v:=x.PlanCode.String; x.Plan=&v }; items=append(items,x) }
+		if err:=rows.Err();err!=nil{rows.Close();writeJSON(w,500,map[string]string{"error":"Falha ao ler empresas"});return}
+		rows.Close()
+		// tenant_users has RLS: count each company's active accounts inside its own server-scoped transaction.
+		for i:=range items {
+			err=WithTenantTx(r.Context(),h.DB,items[i].ID,nil,func(tx *sql.Tx)error{
+				return tx.QueryRowContext(r.Context(),"SELECT count(*) FROM tenant_users WHERE tenant_id=$1::uuid AND active=true",items[i].ID).Scan(&items[i].ActiveUsers)
+			})
+			if err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível consultar os logins das empresas"});return}
+		}
+		writeJSON(w,200,map[string]any{"tenants":items})
 	case http.MethodPost:
 		var in struct { LegalName string `json:"legal_name"`; DisplayName string `json:"display_name"`; Document string `json:"document"`; OwnerUsername string `json:"owner_username"`; OwnerName string `json:"owner_name"`; OwnerPassword string `json:"owner_password"`; PlanCode string `json:"plan_code"`; SeatLimit int `json:"seat_limit"` }
 		if !decodeAuthJSON(w,r,&in){return}; in.LegalName=strings.TrimSpace(in.LegalName); in.DisplayName=strings.TrimSpace(in.DisplayName); in.Document=regexp.MustCompile(`[^0-9]`).ReplaceAllString(in.Document,""); in.OwnerUsername=strings.TrimSpace(in.OwnerUsername); in.OwnerName=strings.TrimSpace(in.OwnerName); in.PlanCode=strings.ToLower(strings.TrimSpace(in.PlanCode))
@@ -138,8 +157,13 @@ func (h *PlatformAdminHandler) tenants(w http.ResponseWriter,r *http.Request) {
 		var tenantID,userID string
 		err=tx.QueryRowContext(r.Context(),"INSERT INTO tenants(legal_name,display_name,document) VALUES($1,$2,$3) RETURNING id::text",in.LegalName,in.DisplayName,in.Document).Scan(&tenantID)
 		if err==nil { _,err=tx.ExecContext(r.Context(),"INSERT INTO tenant_subscriptions(tenant_id,plan_id,status,seat_limit) VALUES($1::uuid,$2::uuid,'active',$3)",tenantID,planID,in.SeatLimit) }
+		if err==nil { _,err=tx.ExecContext(r.Context(),"SELECT set_config('app.tenant_id',$1,true)",tenantID) }
 		if err==nil { err=tx.QueryRowContext(r.Context(),"INSERT INTO tenant_users(tenant_id,username,display_name,password_hash,role) VALUES($1::uuid,$2,$3,$4,'owner') RETURNING id::text",tenantID,in.OwnerUsername,in.OwnerName,hash).Scan(&userID) }
-		if err!=nil { writeJSON(w,409,map[string]string{"error":"Empresa não criada: documento ou usuário duplicado, ou plano inválido"}); return }
+		if err==nil {
+			_,err=tx.ExecContext(r.Context(),`INSERT INTO tenant_audit_events(tenant_id,event_type,entity_type,entity_id,details)
+				VALUES($1::uuid,'platform.tenant.created','tenant',$1,jsonb_build_object('platform_admin_id',$2,'seat_limit',$3,'plan_code',$4))`,tenantID,platformAdminIDFromContext(r.Context()),in.SeatLimit,in.PlanCode)
+		}
+		if err!=nil { writeJSON(w,409,map[string]string{"error":"Empresa não criada: documento ou usuário duplicado, plano inválido ou falha de auditoria"}); return }
 		if err=tx.Commit(); err!=nil { writeJSON(w,500,map[string]string{"error":"Não foi possível concluir cadastro"}); return }
 		writeJSON(w,201,map[string]any{"ok":true,"tenant_id":tenantID,"owner_user_id":userID})
 	default: w.Header().Set("Allow","GET, POST"); writeJSON(w,405,map[string]string{"error":"Método não permitido"})
@@ -157,6 +181,8 @@ func (h *PlatformAdminHandler) tenantByID(w http.ResponseWriter,r *http.Request)
 	if in.SeatLimit!=nil&&(*in.SeatLimit<1||*in.SeatLimit>10000) {writeJSON(w,400,map[string]string{"error":"Limite de logins inválido"});return}
 	tx,err:=h.DB.BeginTx(r.Context(),nil);if err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível iniciar alteração"});return};defer tx.Rollback()
 	var exists bool;if err=tx.QueryRowContext(r.Context(),"SELECT EXISTS(SELECT 1 FROM tenants WHERE id=$1::uuid)",id).Scan(&exists);err!=nil||!exists{writeJSON(w,404,map[string]string{"error":"Empresa não encontrada"});return}
+	// The platform route has verified the target tenant; bind that ID before touching RLS-protected users, sessions or audit rows.
+	if _,err=tx.ExecContext(r.Context(),"SELECT set_config('app.tenant_id',$1,true)",id);err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível definir o contexto da empresa"});return}
 	if in.Status!=nil {_,err=tx.ExecContext(r.Context(),"UPDATE tenants SET status=$2,updated_at=now() WHERE id=$1::uuid",id,*in.Status)}
 	if err==nil&&in.SeatLimit!=nil {
 		var currentSeatLimit,activeUsers int
@@ -167,7 +193,21 @@ func (h *PlatformAdminHandler) tenantByID(w http.ResponseWriter,r *http.Request)
 		}
 	}
 	if err==nil&&(in.SubscriptionStatus!=nil||in.SeatLimit!=nil) {_,err=tx.ExecContext(r.Context(),"UPDATE tenant_subscriptions SET status=COALESCE($2,status),seat_limit=COALESCE($3,seat_limit),updated_at=now() WHERE tenant_id=$1::uuid",id,in.SubscriptionStatus,in.SeatLimit)}
-	if err!=nil {writeJSON(w,409,map[string]string{"error":"Não foi possível atualizar empresa ou licença"});return}
+	if err==nil {
+		revokeSessions:=(in.Status!=nil&&*in.Status!="active")||(in.SubscriptionStatus!=nil&&*in.SubscriptionStatus!="trial"&&*in.SubscriptionStatus!="active")
+		if revokeSessions { _,err=tx.ExecContext(r.Context(),`UPDATE tenant_sessions SET revoked_at=now() WHERE tenant_id=$1::uuid AND revoked_at IS NULL`,id) }
+	}
+	if err==nil {
+		var tenantStatus,subscriptionStatus any
+		var seatLimit any
+		if in.Status!=nil{tenantStatus=*in.Status}
+		if in.SubscriptionStatus!=nil{subscriptionStatus=*in.SubscriptionStatus}
+		if in.SeatLimit!=nil{seatLimit=*in.SeatLimit}
+		_,err=tx.ExecContext(r.Context(),`INSERT INTO tenant_audit_events(tenant_id,event_type,entity_type,entity_id,details)
+			VALUES($1::uuid,'platform.tenant.updated','tenant',$1,jsonb_build_object('platform_admin_id',$2,'tenant_status',$3,'subscription_status',$4,'seat_limit',$5))`,
+			id,platformAdminIDFromContext(r.Context()),tenantStatus,subscriptionStatus,seatLimit)
+	}
+	if err!=nil {writeJSON(w,409,map[string]string{"error":"Não foi possível atualizar empresa, licença, sessões ou auditoria"});return}
 	if err=tx.Commit();err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível concluir alteração"});return}
 	writeJSON(w,200,map[string]bool{"ok":true})
 }

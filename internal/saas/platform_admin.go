@@ -180,7 +180,8 @@ func (h *PlatformAdminHandler) tenantByID(w http.ResponseWriter,r *http.Request)
 	if in.SubscriptionStatus!=nil&&*in.SubscriptionStatus!="trial"&&*in.SubscriptionStatus!="active"&&*in.SubscriptionStatus!="past_due"&&*in.SubscriptionStatus!="suspended"&&*in.SubscriptionStatus!="cancelled" {writeJSON(w,400,map[string]string{"error":"Status da assinatura inválido"});return}
 	if in.SeatLimit!=nil&&(*in.SeatLimit<1||*in.SeatLimit>10000) {writeJSON(w,400,map[string]string{"error":"Limite de logins inválido"});return}
 	tx,err:=h.DB.BeginTx(r.Context(),nil);if err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível iniciar alteração"});return};defer tx.Rollback()
-	var exists bool;if err=tx.QueryRowContext(r.Context(),"SELECT EXISTS(SELECT 1 FROM tenants WHERE id=$1::uuid)",id).Scan(&exists);err!=nil||!exists{writeJSON(w,404,map[string]string{"error":"Empresa não encontrada"});return}
+	var currentTenantStatus,currentSubscriptionStatus string
+	if err=tx.QueryRowContext(r.Context(),`SELECT t.status,s.status FROM tenants t JOIN tenant_subscriptions s ON s.tenant_id=t.id WHERE t.id=$1::uuid FOR UPDATE OF t,s`,id).Scan(&currentTenantStatus,&currentSubscriptionStatus);err!=nil{writeJSON(w,404,map[string]string{"error":"Empresa não encontrada"});return}
 	// The platform route has verified the target tenant; bind that ID before touching RLS-protected users, sessions or audit rows.
 	if _,err=tx.ExecContext(r.Context(),"SELECT set_config('app.tenant_id',$1,true)",id);err!=nil{writeJSON(w,500,map[string]string{"error":"Não foi possível definir o contexto da empresa"});return}
 	if in.Status!=nil {_,err=tx.ExecContext(r.Context(),"UPDATE tenants SET status=$2,updated_at=now() WHERE id=$1::uuid",id,*in.Status)}
@@ -194,7 +195,8 @@ func (h *PlatformAdminHandler) tenantByID(w http.ResponseWriter,r *http.Request)
 	}
 	if err==nil&&(in.SubscriptionStatus!=nil||in.SeatLimit!=nil) {_,err=tx.ExecContext(r.Context(),"UPDATE tenant_subscriptions SET status=COALESCE($2,status),seat_limit=COALESCE($3,seat_limit),updated_at=now() WHERE tenant_id=$1::uuid",id,in.SubscriptionStatus,in.SeatLimit)}
 	if err==nil {
-		revokeSessions:=(in.Status!=nil&&*in.Status!="active")||(in.SubscriptionStatus!=nil&&*in.SubscriptionStatus!="trial"&&*in.SubscriptionStatus!="active")
+		statusChanged:=(in.Status!=nil&&*in.Status!=currentTenantStatus)||(in.SubscriptionStatus!=nil&&*in.SubscriptionStatus!=currentSubscriptionStatus)
+		revokeSessions:=statusChanged||currentTenantStatus!="active"||(currentSubscriptionStatus!="trial"&&currentSubscriptionStatus!="active")
 		if revokeSessions { _,err=tx.ExecContext(r.Context(),`UPDATE tenant_sessions SET revoked_at=now() WHERE tenant_id=$1::uuid AND revoked_at IS NULL`,id) }
 	}
 	if err==nil {

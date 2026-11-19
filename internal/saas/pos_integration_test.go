@@ -96,14 +96,14 @@ func TestPOSCashAndSaleHTTPIntegration(t *testing.T) {
 	guardSaleBody:=fmt.Sprintf(`{"cash_session_id":%q,"items":[{"product_id":%q,"quantity":1}],"payments":[{"method":"cash","amount_cents":2500}]}`,openResult.ID,productID)
 	guardSale:=request(http.MethodPost,"/api/pos/sales",guardSaleBody)
 	if guardSale.Code!=http.StatusCreated{t.Fatalf("venda para teste de caixa fechado: status=%d body=%s",guardSale.Code,guardSale.Body.String())}
+	var guardSaleResult struct{ID string `json:"id"`}
+	if err:=json.Unmarshal(guardSale.Body.Bytes(),&guardSaleResult);err!=nil||guardSaleResult.ID==""{t.Fatalf("id da venda de proteção inválido: %v %s",err,guardSale.Body.String())}
 	if _,err:=db.ExecContext(ctx,`UPDATE tenant_users SET role='cashier' WHERE tenant_id=$1::uuid AND id=$2::uuid`,tenantID,ownerID);err!=nil{t.Fatal(err)}
-	unauthorizedRefund:=request(http.MethodPost,"/api/pos/sales/"+func()string{var x struct{ID string `json:"id"`};_ = json.Unmarshal(guardSale.Body.Bytes(),&x);return x.ID}()+"/refund",`{"reason":"Perfil caixa não autorizado"}`)
+	unauthorizedRefund:=request(http.MethodPost,"/api/pos/sales/"+guardSaleResult.ID+"/refund",`{"reason":"Perfil caixa não autorizado"}`)
 	if unauthorizedRefund.Code!=http.StatusForbidden{t.Fatalf("perfil caixa não deve estornar: status=%d body=%s",unauthorizedRefund.Code,unauthorizedRefund.Body.String())}
 	if _,err:=db.ExecContext(ctx,`UPDATE tenant_users SET role='owner' WHERE tenant_id=$1::uuid AND id=$2::uuid`,tenantID,ownerID);err!=nil{t.Fatal(err)}
 	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":10900}`,openResult.ID))
 	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":11000`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento após estornos: status=%d body=%s",closed.Code,closed.Body.String())}
-	var guardSaleResult struct{ID string `json:"id"`}
-	if err:=json.Unmarshal(guardSale.Body.Bytes(),&guardSaleResult);err!=nil||guardSaleResult.ID==""{t.Fatalf("id da venda de proteção inválido: %v %s",err,guardSale.Body.String())}
 	closedCashRefund:=request(http.MethodPost,"/api/pos/sales/"+guardSaleResult.ID+"/refund",`{"reason":"Devolução após fechar caixa"}`)
 	if closedCashRefund.Code!=http.StatusConflict||!strings.Contains(closedCashRefund.Body.String(),"caixa"){t.Fatalf("estorno em dinheiro com caixa fechado deveria ser bloqueado: status=%d body=%s",closedCashRefund.Code,closedCashRefund.Body.String())}
 	if err:=db.QueryRowContext(ctx,"SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,productID).Scan(&stock);err!=nil{t.Fatal(err)}

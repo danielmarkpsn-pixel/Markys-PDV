@@ -67,6 +67,12 @@ func TestInventoryHTTPIntegration(t *testing.T) {
 	expiry := time.Now().AddDate(1, 0, 0).Format("2006-01-02")
 	lotEntry := request(http.MethodPost, "/api/inventory/adjustments", fmt.Sprintf(`{"product_id":%q,"movement_type":"entry","quantity":5,"lot_code":"LOTE-001","expires_on":%q}`, lotID, expiry))
 	if lotEntry.Code != http.StatusCreated { t.Fatalf("entrada por lote: status=%d body=%s", lotEntry.Code, lotEntry.Body.String()) }
+	conflictingExpiry := time.Now().AddDate(2, 0, 0).Format("2006-01-02")
+	conflictingEntry := request(http.MethodPost, "/api/inventory/adjustments", fmt.Sprintf(`{"product_id":%q,"movement_type":"entry","quantity":4,"lot_code":"LOTE-001","expires_on":%q}`, lotID, conflictingExpiry))
+	if conflictingEntry.Code != http.StatusConflict { t.Fatalf("lote com validade divergente deveria ser recusado: status=%d body=%s", conflictingEntry.Code, conflictingEntry.Body.String()) }
+	var stockAfterConflict float64
+	if err := db.QueryRowContext(ctx, "SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid", tenantID, lotID).Scan(&stockAfterConflict); err != nil { t.Fatal(err) }
+	if stockAfterConflict != 5 { t.Fatalf("entrada conflitante não deveria alterar o estoque; esperado 5, recebido %v", stockAfterConflict) }
 	lotExit := request(http.MethodPost, "/api/inventory/adjustments", fmt.Sprintf(`{"product_id":%q,"movement_type":"exit","quantity":2,"lot_code":"LOTE-001"}`, lotID))
 	if lotExit.Code != http.StatusCreated { t.Fatalf("saída por lote: status=%d body=%s", lotExit.Code, lotExit.Body.String()) }
 	var lotStock float64

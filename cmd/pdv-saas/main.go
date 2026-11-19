@@ -26,12 +26,21 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if cfg.Migrate {
+		migrationURL:=strings.TrimSpace(os.Getenv("SAAS_MIGRATION_DATABASE_URL"))
+		if migrationURL=="" { log.Fatal("SAAS_MIGRATE=true exige SAAS_MIGRATION_DATABASE_URL com credencial exclusiva de migração; DATABASE_URL deve permanecer restrita ao runtime") }
+		migrationCfg:=cfg
+		migrationCfg.DatabaseURL=migrationURL
+		migrationDB,err:=saas.OpenPostgres(ctx,migrationCfg)
+		if err!=nil { log.Fatal(err) }
+		if err:=saas.ApplyMigrations(ctx,migrationDB);err!=nil { _=migrationDB.Close();log.Fatal(err) }
+		if err:=migrationDB.Close();err!=nil { log.Fatal(err) }
+	}
+
 	db, err := saas.OpenPostgres(ctx, cfg)
 	if err != nil { log.Fatal(err) }
 	defer db.Close()
-	if cfg.Migrate {
-		if err := saas.ApplyMigrations(ctx, db); err != nil { log.Fatal(err) }
-	}
+	if err:=saas.ValidateRuntimeRole(ctx,db);err!=nil { log.Fatal(err) }
 
 	mux := http.NewServeMux()
 	auth := saas.NewHTTPHandler(db, strings.EqualFold(os.Getenv("SAAS_COOKIE_SECURE"), "true"))

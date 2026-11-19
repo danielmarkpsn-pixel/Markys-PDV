@@ -36,6 +36,9 @@ func TestPOSCashAndSaleHTTPIntegration(t *testing.T) {
 	if err:=json.Unmarshal(opened.Body.Bytes(),&openResult);err!=nil||openResult.ID==""{t.Fatalf("resposta de abertura inválida: %v %s",err,opened.Body.String())}
 	duplicate:=request(http.MethodPost,"/api/pos/cash/open",`{"terminal_code":"PDV-01","opening_amount_cents":0}`)
 	if duplicate.Code!=http.StatusConflict{t.Fatalf("segundo caixa aberto no mesmo terminal deveria ser recusado: %d %s",duplicate.Code,duplicate.Body.String())}
+	zeroPrecisionSale:=fmt.Sprintf(`{"cash_session_id":%q,"items":[{"product_id":%q,"quantity":0.0001}],"payments":[{"method":"cash","amount_cents":1}]}`,openResult.ID,productID)
+	zeroPrecision:=request(http.MethodPost,"/api/pos/sales",zeroPrecisionSale)
+	if zeroPrecision.Code!=http.StatusBadRequest{t.Fatalf("quantidade que arredonda para zero deveria ser recusada: status=%d body=%s",zeroPrecision.Code,zeroPrecision.Body.String())}
 	saleBody:=fmt.Sprintf(`{"cash_session_id":%q,"items":[{"product_id":%q,"quantity":2}],"payments":[{"method":"cash","amount_cents":5000}]}`,openResult.ID,productID)
 	sale:=request(http.MethodPost,"/api/pos/sales",saleBody)
 	if sale.Code!=http.StatusCreated||!strings.Contains(sale.Body.String(),`"status":"completed"`){t.Fatalf("venda: status=%d body=%s",sale.Code,sale.Body.String())}

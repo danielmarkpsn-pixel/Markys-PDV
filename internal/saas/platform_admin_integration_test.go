@@ -28,7 +28,6 @@ func TestPlatformAdminHTTPIntegration(t *testing.T) {
 	roleName:="markys_platform_test_"+suffix
 	rolePassword:="Markys-Platform-Test-Only-2026!"
 	if _,err=db.ExecContext(ctx,fmt.Sprintf("CREATE ROLE %s LOGIN PASSWORD '%s' NOSUPERUSER NOBYPASSRLS",roleName,rolePassword));err!=nil{t.Fatal(err)}
-	t.Cleanup(func(){_,_=db.ExecContext(context.Background(),"DROP OWNED BY "+roleName);_,_=db.ExecContext(context.Background(),"DROP ROLE "+roleName)})
 	grants:=[]string{
 		"GRANT USAGE ON SCHEMA public TO "+roleName,
 		"GRANT SELECT,INSERT,UPDATE,DELETE ON tenants,tenant_subscriptions,tenant_users,tenant_sessions,tenant_audit_events,saas_plans,platform_admins,platform_admin_sessions TO "+roleName,
@@ -37,7 +36,8 @@ func TestPlatformAdminHTTPIntegration(t *testing.T) {
 	for _,statement:=range grants{if _,err=db.ExecContext(ctx,statement);err!=nil{t.Fatal(err)}}
 	pgxConfig,err:=pgx.ParseConfig(dsn);if err!=nil{t.Fatal(err)}
 	pgxConfig.User=roleName;pgxConfig.Password=rolePassword
-	appDB:=stdlib.OpenDB(*pgxConfig);appDB.SetMaxOpenConns(4);defer appDB.Close()
+	appDB:=stdlib.OpenDB(*pgxConfig);appDB.SetMaxOpenConns(4)
+	defer func(){_ = appDB.Close();_,_=db.ExecContext(context.Background(),"DROP OWNED BY "+roleName);_,_=db.ExecContext(context.Background(),"DROP ROLE "+roleName)}()
 	if err=appDB.PingContext(ctx);err!=nil{t.Fatal(err)}
 	username:="platform-test-"+suffix
 	hash,err:=HashPassword("Platform-Password-2026!");if err!=nil{t.Fatal(err)}

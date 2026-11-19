@@ -90,3 +90,31 @@ Esta entrega disponibiliza a API de autenticação, mas ainda não conecta os m�
 A migration `0002_tenant_commercial_data.sql` cria a primeira estrutura PostgreSQL dos módulos comerciais: configurações da loja, categorias, fornecedores, produtos, lotes, clientes, sessões de caixa, vendas, itens de venda, pagamentos, movimentações de estoque, equipamentos e documentos fiscais. Todas as tabelas operacionais recebem `tenant_id`, chaves estrangeiras compostas para impedir vínculos entre empresas e RLS com `FORCE ROW LEVEL SECURITY`. O teste `0003_tenant_commercial_data_test.sql` valida leitura isolada e bloqueio de escrita cruzada com uma role sem privilégios de superusuário ou bypass RLS.
 
 Essa migration estabelece o modelo do banco, mas os repositórios e endpoints dos módulos ainda precisam ser implementados em cima dele; não significa que o PDV comercial já esteja conectado ao PostgreSQL.
+
+### Provisionamento da role de runtime
+
+Depois de aplicar as migrations com a credencial de migração, crie uma role exclusiva para a aplicação. Substitua o nome do banco, o nome da role e a senha pelos valores do ambiente:
+
+```sql
+CREATE ROLE markys_app_runtime
+  LOGIN PASSWORD '<SENHA_FORTE>'
+  NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+
+GRANT CONNECT ON DATABASE markys TO markys_app_runtime;
+GRANT USAGE ON SCHEMA public TO markys_app_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON ALL TABLES IN SCHEMA public TO markys_app_runtime;
+GRANT USAGE, SELECT
+  ON ALL SEQUENCES IN SCHEMA public TO markys_app_runtime;
+
+-- A aplicação não deve alterar o histórico de migrations.
+REVOKE ALL ON TABLE schema_migrations FROM markys_app_runtime;
+
+-- Execute como o proprietário usado em SAAS_MIGRATION_DATABASE_URL.
+ALTER DEFAULT PRIVILEGES FOR ROLE <USUARIO_MIGRACAO> IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO markys_app_runtime;
+ALTER DEFAULT PRIVILEGES FOR ROLE <USUARIO_MIGRACAO> IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO markys_app_runtime;
+```
+
+A role de migração deve ser a proprietária das tabelas e executar as alterações de schema. A role `markys_app_runtime` recebe apenas permissões operacionais e não pode ser proprietária das tabelas RLS. O serviço valida esses privilégios antes de abrir o servidor.

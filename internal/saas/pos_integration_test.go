@@ -66,6 +66,12 @@ func TestPOSCashAndSaleHTTPIntegration(t *testing.T) {
 	if err:=json.Unmarshal(splitSale.Body.Bytes(),&splitResult);err!=nil||splitResult.ID==""{t.Fatalf("id da venda dividida inválido: %v %s",err,splitSale.Body.String())}
 	refund:=request(http.MethodPost,"/api/pos/sales/"+splitResult.ID+"/refund",`{"reason":"Cliente desistiu da compra"}`)
 	if refund.Code!=http.StatusOK||!strings.Contains(refund.Body.String(),`"status":"refunded"`){t.Fatalf("estorno integral: status=%d body=%s",refund.Code,refund.Body.String())}
+	var refundPaymentCount int
+	if err:=db.QueryRowContext(ctx,`SELECT COUNT(*) FROM tenant_sale_refund_payments rp JOIN tenant_sale_refunds r ON r.tenant_id=rp.tenant_id AND r.id=rp.refund_id WHERE r.tenant_id=$1::uuid AND r.sale_id=$2::uuid`,tenantID,splitResult.ID).Scan(&refundPaymentCount);err!=nil{t.Fatal(err)}
+	if refundPaymentCount!=2{t.Fatalf("estorno deveria registrar os dois meios de pagamento originais, recebeu %d",refundPaymentCount)}
+	var refundAuditCount int
+	if err:=db.QueryRowContext(ctx,`SELECT COUNT(*) FROM tenant_audit_events WHERE tenant_id=$1::uuid AND event_type='sale.refunded' AND entity_id=$2`,tenantID,splitResult.ID).Scan(&refundAuditCount);err!=nil{t.Fatal(err)}
+	if refundAuditCount!=1{t.Fatalf("estorno deveria gerar exatamente um evento de auditoria, recebeu %d",refundAuditCount)}
 	duplicateRefund:=request(http.MethodPost,"/api/pos/sales/"+splitResult.ID+"/refund",`{"reason":"Tentativa duplicada de estorno"}`)
 	if duplicateRefund.Code!=http.StatusConflict{t.Fatalf("estorno duplicado deveria ser bloqueado: status=%d body=%s",duplicateRefund.Code,duplicateRefund.Body.String())}
 	if err:=db.QueryRowContext(ctx,"SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,productID).Scan(&stock);err!=nil{t.Fatal(err)}

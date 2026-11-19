@@ -3,6 +3,7 @@ package saas
 import (
  "context"
  "fmt"
+ "errors"
  "net/http"
  "net/http/httptest"
  "os"
@@ -32,8 +33,23 @@ func TestTenantAdminHTTPIntegration(t *testing.T) {
  }
  created:=request(http.MethodPost,"/api/admin/users",`{"username":"cashier1","display_name":"Operador 1","password":"Cashier-Password-2026!","role":"cashier"}`)
  if created.Code!=http.StatusCreated{t.Fatalf("criar usuário: status=%d body=%s",created.Code,created.Body.String())}
+ var cashierID string
+ if err:=db.QueryRowContext(ctx,"SELECT id::text FROM tenant_users WHERE tenant_id=$1::uuid AND username='cashier1'",tenantID).Scan(&cashierID);err!=nil{t.Fatal(err)}
+ cashierToken,_,err:=CreateLoginSession(ctx,db,tenantID,cashierID,"cashier-device","127.0.0.2",time.Now().Add(time.Hour))
+ if err!=nil{t.Fatal(err)}
  duplicateSeat:=request(http.MethodPost,"/api/admin/users",`{"username":"cashier2","display_name":"Operador 2","password":"Cashier-Password-2026!","role":"cashier"}`)
  if duplicateSeat.Code!=http.StatusConflict{t.Fatalf("limite de assentos: status=%d body=%s",duplicateSeat.Code,duplicateSeat.Body.String())}
+ deactivated:=request(http.MethodPut,"/api/admin/users/"+cashierID,`{"active":false}`)
+ if deactivated.Code!=http.StatusOK{t.Fatalf("desativar usuário: status=%d body=%s",deactivated.Code,deactivated.Body.String())}
+ if _,err:=ValidateLoginSession(ctx,db,cashierToken);!errors.Is(err,ErrInvalidSession){t.Fatalf("sessão deve ser revogada ao desativar usuário, erro recebido: %v",err)}
+ reactivated:=request(http.MethodPut,"/api/admin/users/"+cashierID,`{"active":true}`)
+ if reactivated.Code!=http.StatusOK{t.Fatalf("reativar usuário: status=%d body=%s",reactivated.Code,reactivated.Body.String())}
+ if _,err:=ValidateLoginSession(ctx,db,cashierToken);!errors.Is(err,ErrInvalidSession){t.Fatalf("sessão antiga não pode voltar após reativação, erro recebido: %v",err)}
+ cashierToken,_,err=CreateLoginSession(ctx,db,tenantID,cashierID,"cashier-device-2","127.0.0.2",time.Now().Add(time.Hour))
+ if err!=nil{t.Fatal(err)}
+ passwordReset:=request(http.MethodPut,"/api/admin/users/"+cashierID,`{"password":"Cashier-New-Password-2026!"}`)
+ if passwordReset.Code!=http.StatusOK{t.Fatalf("redefinir senha: status=%d body=%s",passwordReset.Code,passwordReset.Body.String())}
+ if _,err:=ValidateLoginSession(ctx,db,cashierToken);!errors.Is(err,ErrInvalidSession){t.Fatalf("sessão deve ser revogada ao redefinir senha, erro recebido: %v",err)}
  list:=request(http.MethodGet,"/api/admin/users","")
  if list.Code!=http.StatusOK||!strings.Contains(list.Body.String(),"cashier1"){t.Fatalf("listar usuários: status=%d body=%s",list.Code,list.Body.String())}
  license:=request(http.MethodGet,"/api/admin/license","")

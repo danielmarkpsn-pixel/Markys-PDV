@@ -39,6 +39,8 @@ func TestPlatformAdminHTTPIntegration(t *testing.T) {
 	appDB:=stdlib.OpenDB(*pgxConfig);appDB.SetMaxOpenConns(4)
 	defer func(){_ = appDB.Close();_,_=db.ExecContext(context.Background(),"DROP OWNED BY "+roleName);_,_=db.ExecContext(context.Background(),"DROP ROLE "+roleName)}()
 	if err=appDB.PingContext(ctx);err!=nil{t.Fatal(err)}
+	if err=ValidateRuntimeRole(ctx,appDB);err!=nil{t.Fatalf("role runtime segura deveria ser aceita: %v",err)}
+	if err=ValidateRuntimeRole(ctx,db);err==nil{t.Fatal("role de superusuário não deveria ser aceita como runtime SaaS")}
 	username:="platform-test-"+suffix
 	hash,err:=HashPassword("Platform-Password-2026!");if err!=nil{t.Fatal(err)}
 	var adminID string

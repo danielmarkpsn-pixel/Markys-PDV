@@ -83,17 +83,27 @@ func TestPOSCashAndSaleHTTPIntegration(t *testing.T) {
 	if err:=db.QueryRowContext(ctx,"SELECT quantity FROM tenant_product_lots WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,lotEarlyID).Scan(&earlyQty);err!=nil{t.Fatal(err)}
 	if err:=db.QueryRowContext(ctx,"SELECT quantity FROM tenant_product_lots WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,lotLateID).Scan(&lateQty);err!=nil{t.Fatal(err)}
 	if earlyQty!=3||lateQty!=3{t.Fatalf("estorno deveria recompor exatamente os lotes FEFO em 3 e 3; recebeu %v e %v",earlyQty,lateQty)}
+	partialBody:=fmt.Sprintf(`{"cash_session_id":%q,"items":[{"product_id":%q,"quantity":0.5},{"product_id":%q,"quantity":0.5}],"payments":[{"method":"cash","amount_cents":2500}]}`,openResult.ID,productID,productID)
+	partialSale:=request(http.MethodPost,"/api/pos/sales",partialBody)
+	if partialSale.Code!=http.StatusCreated{t.Fatalf("venda para testar histórico parcial: status=%d body=%s",partialSale.Code,partialSale.Body.String())}
+	var partialResult struct{ID string `json:"id"`}
+	if err:=json.Unmarshal(partialSale.Body.Bytes(),&partialResult);err!=nil||partialResult.ID==""{t.Fatalf("id da venda parcial inválido: %v %s",err,partialSale.Body.String())}
+	if _,err:=db.ExecContext(ctx,`DELETE FROM tenant_stock_movements WHERE id=(SELECT id FROM tenant_stock_movements WHERE tenant_id=$1::uuid AND sale_id=$2::uuid AND movement_type='sale' ORDER BY created_at,id LIMIT 1)`,tenantID,partialResult.ID);err!=nil{t.Fatal(err)}
+	partialRefund:=request(http.MethodPost,"/api/pos/sales/"+partialResult.ID+"/refund",`{"reason":"Teste de histórico incompleto"}`)
+	if partialRefund.Code!=http.StatusConflict||!strings.Contains(partialRefund.Body.String(),"rastreabilidade"){t.Fatalf("estorno com histórico parcial deveria ser bloqueado: status=%d body=%s",partialRefund.Code,partialRefund.Body.String())}
+	if err:=db.QueryRowContext(ctx,"SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,productID).Scan(&stock);err!=nil{t.Fatal(err)}
+	if stock!=7{t.Fatalf("histórico parcial não pode alterar estoque; esperado 7, recebido %v",stock)}
 	guardSaleBody:=fmt.Sprintf(`{"cash_session_id":%q,"items":[{"product_id":%q,"quantity":1}],"payments":[{"method":"cash","amount_cents":2500}]}`,openResult.ID,productID)
 	guardSale:=request(http.MethodPost,"/api/pos/sales",guardSaleBody)
 	if guardSale.Code!=http.StatusCreated{t.Fatalf("venda para teste de caixa fechado: status=%d body=%s",guardSale.Code,guardSale.Body.String())}
-	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":8400}`,openResult.ID))
-	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":8500`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento após estornos: status=%d body=%s",closed.Code,closed.Body.String())}
+	closed:=request(http.MethodPost,"/api/pos/cash/close",fmt.Sprintf(`{"session_id":%q,"closing_amount_cents":10900}`,openResult.ID))
+	if closed.Code!=http.StatusOK||!strings.Contains(closed.Body.String(),`"expected_cash_cents":11000`)||!strings.Contains(closed.Body.String(),`"difference_cents":-100`){t.Fatalf("fechamento após estornos: status=%d body=%s",closed.Code,closed.Body.String())}
 	var guardSaleResult struct{ID string `json:"id"`}
 	if err:=json.Unmarshal(guardSale.Body.Bytes(),&guardSaleResult);err!=nil||guardSaleResult.ID==""{t.Fatalf("id da venda de proteção inválido: %v %s",err,guardSale.Body.String())}
 	closedCashRefund:=request(http.MethodPost,"/api/pos/sales/"+guardSaleResult.ID+"/refund",`{"reason":"Devolução após fechar caixa"}`)
 	if closedCashRefund.Code!=http.StatusConflict||!strings.Contains(closedCashRefund.Body.String(),"caixa"){t.Fatalf("estorno em dinheiro com caixa fechado deveria ser bloqueado: status=%d body=%s",closedCashRefund.Code,closedCashRefund.Body.String())}
 	if err:=db.QueryRowContext(ctx,"SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,productID).Scan(&stock);err!=nil{t.Fatal(err)}
-	if stock!=7{t.Fatalf("estorno bloqueado deveria reverter qualquer alteração de estoque; saldo esperado 7, recebido %v",stock)}
+	if stock!=6{t.Fatalf("estorno bloqueado deveria reverter qualquer alteração de estoque; saldo esperado 6, recebido %v",stock)}
 	list:=request(http.MethodGet,"/api/pos/sales?limit=20","")
 	if list.Code!=http.StatusOK||!strings.Contains(list.Body.String(),"sale_number"){t.Fatalf("listagem de vendas: status=%d body=%s",list.Code,list.Body.String())}
 }

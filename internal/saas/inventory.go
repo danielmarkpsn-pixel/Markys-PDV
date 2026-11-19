@@ -11,6 +11,7 @@ import (
 )
 
 var errInsufficientStock = errors.New("insufficient stock")
+var errLotExpiryConflict = errors.New("lot expiry conflict")
 
 type InventoryHandler struct {
 	DB *sql.DB
@@ -155,8 +156,12 @@ func (h *InventoryHandler) adjust(w http.ResponseWriter, r *http.Request) {
 					VALUES($1::uuid,$2::uuid,$3,$4,$5)
 					ON CONFLICT(tenant_id,product_id,lot_code) DO UPDATE SET
 					quantity=tenant_product_lots.quantity+EXCLUDED.quantity,
-					expires_on=COALESCE(EXCLUDED.expires_on,tenant_product_lots.expires_on)
+					expires_on=COALESCE(tenant_product_lots.expires_on,EXCLUDED.expires_on)
+					WHERE EXCLUDED.expires_on IS NULL
+					   OR tenant_product_lots.expires_on IS NULL
+				   OR tenant_product_lots.expires_on=EXCLUDED.expires_on
 					RETURNING id::text`,id.TenantID,in.ProductID,in.LotCode,expires,in.Quantity).Scan(&lotIDText)
+				if err==sql.ErrNoRows{return errLotExpiryConflict}
 				if err!=nil{return err};lotID=lotIDText
 			}else{
 				var lotQuantity float64;var lotIDText string
@@ -175,6 +180,7 @@ func (h *InventoryHandler) adjust(w http.ResponseWriter, r *http.Request) {
 	if err!=nil{
 		if err==sql.ErrNoRows{writeJSON(w,404,map[string]string{"error":"Produto ou lote não encontrado"});return}
 		if err==errInsufficientStock{writeJSON(w,409,map[string]string{"error":"Estoque insuficiente para esta saída"});return}
+		if err==errLotExpiryConflict{writeJSON(w,409,map[string]string{"error":"Este código de lote já está cadastrado com outra validade. Confira o lote antes de lançar a entrada."});return}
 		if err==errInvalidUserInput{writeJSON(w,400,map[string]string{"error":"Este produto exige controle por lote. Informe lote e validade, ou faça a movimentação por lote."});return}
 		writeJSON(w,409,map[string]string{"error":"Não foi possível registrar a movimentação; confira produto e lote"});return
 	}

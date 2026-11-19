@@ -35,6 +35,16 @@ func (h *POSHandler) refundSale(w http.ResponseWriter, r *http.Request) {
   for rows.Next(){var m movement;if err:=rows.Scan(&m.ProductID,&m.Quantity,&m.ReferenceType,&m.ReferenceID);err!=nil{rows.Close();return err};movements=append(movements,m)}
   if err:=rows.Err();err!=nil{rows.Close();return err};rows.Close()
   if len(movements)==0{return errRefundMovementMissing}
+  var incomplete bool
+  if err:=tx.QueryRowContext(r.Context(),`SELECT EXISTS(
+   SELECT 1 FROM
+    (SELECT product_id,SUM(quantity) AS quantity FROM tenant_sale_items WHERE tenant_id=$1::uuid AND sale_id=$2::uuid GROUP BY product_id) items
+   FULL JOIN
+    (SELECT product_id,SUM(-quantity) AS quantity FROM tenant_stock_movements WHERE tenant_id=$1::uuid AND sale_id=$2::uuid AND movement_type='sale' GROUP BY product_id) movements
+   USING(product_id)
+   WHERE items.quantity IS DISTINCT FROM movements.quantity
+  )`,id.TenantID,saleID).Scan(&incomplete);err!=nil{return err}
+  if incomplete{return errRefundMovementMissing}
   if err:=tx.QueryRowContext(r.Context(),`INSERT INTO tenant_sale_refunds(tenant_id,sale_id,refunded_by,reason,total_cents)
    VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5) RETURNING id::text`,id.TenantID,saleID,id.UserID,in.Reason,total).Scan(&refundID);err!=nil{return err}
   for _,m:=range movements{
@@ -43,7 +53,7 @@ func (h *POSHandler) refundSale(w http.ResponseWriter, r *http.Request) {
     if !m.ReferenceID.Valid{return errRefundMovementMissing}
     result,err:=tx.ExecContext(r.Context(),`UPDATE tenant_product_lots SET quantity=quantity+$4 WHERE tenant_id=$1::uuid AND product_id=$2::uuid AND id=$3::uuid`,id.TenantID,m.ProductID,m.ReferenceID.String,restore)
     if err!=nil{return err};n,err:=result.RowsAffected();if err!=nil{return err};if n!=1{return errRefundMovementMissing}
-   }else if m.ReferenceType!="sale"{return errRefundMovementMissing}
+   }else if m.ReferenceType!="sale"||!m.ReferenceID.Valid||m.ReferenceID.String!=saleID{return errRefundMovementMissing}
    if _,err:=tx.ExecContext(r.Context(),`UPDATE tenant_products SET stock=stock+$3,updated_at=now() WHERE tenant_id=$1::uuid AND id=$2::uuid`,id.TenantID,m.ProductID,restore);err!=nil{return err}
    var reference any
    if m.ReferenceID.Valid{reference=m.ReferenceID.String}

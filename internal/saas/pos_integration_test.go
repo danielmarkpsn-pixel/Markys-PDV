@@ -111,6 +111,32 @@ func TestPOSCashAndSaleHTTPIntegration(t *testing.T) {
 	if closedCashRefund.Code!=http.StatusConflict||!strings.Contains(closedCashRefund.Body.String(),"caixa"){t.Fatalf("estorno em dinheiro com caixa fechado deveria ser bloqueado: status=%d body=%s",closedCashRefund.Code,closedCashRefund.Body.String())}
 	if err:=db.QueryRowContext(ctx,"SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,productID).Scan(&stock);err!=nil{t.Fatal(err)}
 	if stock!=6{t.Fatalf("estorno bloqueado deveria reverter qualquer alteração de estoque; saldo esperado 6, recebido %v",stock)}
+
+	// Duas vendas simultâneas não podem consumir o mesmo saldo de estoque.
+	var concurrentProductID string
+	if err:=db.QueryRowContext(ctx,"INSERT INTO tenant_products(tenant_id,code,name,price_cents,stock) VALUES($1::uuid,'POS-CONCURRENT','Produto Concorrente',1000,5) RETURNING id::text",tenantID).Scan(&concurrentProductID);err!=nil{t.Fatal(err)}
+	concurrentBody:=fmt.Sprintf(`{"cash_session_id":%q,"items":[{"product_id":%q,"quantity":4}],"payments":[{"method":"cash","amount_cents":4000}]}`,openResult.ID,concurrentProductID)
+	start:=make(chan struct{})
+	results:=make(chan int,2)
+	for i:=0;i<2;i++{
+		go func(){
+			<-start
+			rec:=request(http.MethodPost,"/api/pos/sales",concurrentBody)
+			results<-rec.Code
+		}()
+	}
+	close(start)
+	statusA,statusB:=<-results,<-results
+	successes,conflicts:=0,0
+	for _,status:=range []int{statusA,statusB}{
+		if status==http.StatusCreated{successes++}
+		if status==http.StatusConflict{conflicts++}
+	}
+	if successes!=1||conflicts!=1{t.Fatalf("vendas concorrentes: esperado 1 sucesso e 1 conflito, recebido %d e %d (status %d, %d)",successes,conflicts,statusA,statusB)}
+	var concurrentStock float64
+	if err:=db.QueryRowContext(ctx,"SELECT stock FROM tenant_products WHERE tenant_id=$1::uuid AND id=$2::uuid",tenantID,concurrentProductID).Scan(&concurrentStock);err!=nil{t.Fatal(err)}
+	if concurrentStock!=1{t.Fatalf("estoque concorrente deveria terminar em 1, recebido %v",concurrentStock)}
+
 	list:=request(http.MethodGet,"/api/pos/sales?limit=20","")
 	if list.Code!=http.StatusOK||!strings.Contains(list.Body.String(),"sale_number"){t.Fatalf("listagem de vendas: status=%d body=%s",list.Code,list.Body.String())}
 }

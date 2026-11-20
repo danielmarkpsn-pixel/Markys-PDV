@@ -9,6 +9,7 @@ on:
       - "cmd/pdv-saas/**"
       - "go.mod"
       - "go.sum"
+      - "Dockerfile"
   pull_request:
     paths:
       - "migrations/postgres/**"
@@ -53,6 +54,8 @@ jobs:
         run: go test ./internal/saas -v
       - name: Compile SaaS server
         run: go test ./cmd/pdv-saas -v
+      - name: Build Linux SaaS container image
+        run: docker build --pull -t markys-pdv-saas:test .
       - name: Validate SaaS interface JavaScript syntax
         run: |
           python3 - <<'PY'

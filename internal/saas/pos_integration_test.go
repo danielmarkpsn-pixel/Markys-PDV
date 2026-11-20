@@ -113,9 +113,15 @@ func TestPOSCashAndSaleHTTPIntegration(t *testing.T) {
 	if stock!=6{t.Fatalf("estorno bloqueado deveria reverter qualquer alteração de estoque; saldo esperado 6, recebido %v",stock)}
 
 	// Duas vendas simultâneas não podem consumir o mesmo saldo de estoque.
+	// O caixa original já foi fechado no cenário acima; abrir outro terminal
+	// mantém este teste independente da regra de caixa fechado.
+	concurrentOpen:=request(http.MethodPost,"/api/pos/cash/open",`{"terminal_code":"PDV-02","opening_amount_cents":0}`)
+	if concurrentOpen.Code!=http.StatusCreated{t.Fatalf("abrir caixa para teste concorrente: status=%d body=%s",concurrentOpen.Code,concurrentOpen.Body.String())}
+	var concurrentCash struct{ID string `json:"id"`}
+	if err:=json.Unmarshal(concurrentOpen.Body.Bytes(),&concurrentCash);err!=nil||concurrentCash.ID==""{t.Fatalf("id do caixa concorrente inválido: %v %s",err,concurrentOpen.Body.String())}
 	var concurrentProductID string
 	if err:=db.QueryRowContext(ctx,"INSERT INTO tenant_products(tenant_id,code,name,price_cents,stock) VALUES($1::uuid,'POS-CONCURRENT','Produto Concorrente',1000,5) RETURNING id::text",tenantID).Scan(&concurrentProductID);err!=nil{t.Fatal(err)}
-	concurrentBody:=fmt.Sprintf(`{"cash_session_id":%q,"items":[{"product_id":%q,"quantity":4}],"payments":[{"method":"cash","amount_cents":4000}]}`,openResult.ID,concurrentProductID)
+	concurrentBody:=fmt.Sprintf(`{"cash_session_id":%q,"items":[{"product_id":%q,"quantity":4}],"payments":[{"method":"cash","amount_cents":4000}]}`,concurrentCash.ID,concurrentProductID)
 	start:=make(chan struct{})
 	results:=make(chan int,2)
 	for i:=0;i<2;i++{

@@ -5,8 +5,8 @@ RUN apk add --no-cache ca-certificates
 COPY go.mod ./
 RUN go mod download
 COPY . .
-# Verbose build output makes compiler diagnostics visible in Render Build Logs.
-RUN go version && go env GOOS GOARCH CGO_ENABLED && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -x -trimpath -ldflags="-s -w" -o /out/markys-pdv-saas ./cmd/pdv-saas
+# Reconcile module checksums before compiling (go.sum may be absent in this branch).
+RUN go mod tidy && go mod verify && go version && go env GOOS GOARCH CGO_ENABLED && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -trimpath -ldflags="-s -w" -o /out/markys-pdv-saas ./cmd/pdv-saas
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app

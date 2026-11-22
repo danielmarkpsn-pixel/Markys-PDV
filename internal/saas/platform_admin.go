@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/base64"
 	"net"
+	"net/mail"
 	"net/http"
 	"regexp"
 	"strings"
@@ -148,17 +149,17 @@ func (h *PlatformAdminHandler) tenants(w http.ResponseWriter,r *http.Request) {
 		}
 		writeJSON(w,200,map[string]any{"tenants":items})
 	case http.MethodPost:
-		var in struct { LegalName string `json:"legal_name"`; DisplayName string `json:"display_name"`; Document string `json:"document"`; OwnerUsername string `json:"owner_username"`; OwnerName string `json:"owner_name"`; OwnerPassword string `json:"owner_password"`; PlanCode string `json:"plan_code"`; SeatLimit int `json:"seat_limit"` }
-		if !decodeAuthJSON(w,r,&in){return}; in.LegalName=strings.TrimSpace(in.LegalName); in.DisplayName=strings.TrimSpace(in.DisplayName); in.Document=regexp.MustCompile(`[^0-9]`).ReplaceAllString(in.Document,""); in.OwnerUsername=strings.TrimSpace(in.OwnerUsername); in.OwnerName=strings.TrimSpace(in.OwnerName); in.PlanCode=strings.ToLower(strings.TrimSpace(in.PlanCode))
-		if in.LegalName==""||in.DisplayName==""||len(in.Document)<11||len(in.Document)>14||in.OwnerUsername==""||in.OwnerName==""||in.SeatLimit<1||in.SeatLimit>10000 { writeJSON(w,400,map[string]string{"error":"Dados da empresa, proprietário, documento ou limite de logins inválidos"}); return }
-		hash,err:=HashPassword(in.OwnerPassword); if err!=nil { writeJSON(w,400,map[string]string{"error":err.Error()}); return }
+		var in struct { LegalName string `json:"legal_name"`; DisplayName string `json:"display_name"`; Document string `json:"document"`; OwnerUsername string `json:"owner_username"`; OwnerName string `json:"owner_name"`; OwnerEmail string `json:"owner_email"`; OwnerPassword string `json:"owner_password"`; PlanCode string `json:"plan_code"`; SeatLimit int `json:"seat_limit"` }
+		if !decodeAuthJSON(w,r,&in){return}; in.LegalName=strings.TrimSpace(in.LegalName); in.DisplayName=strings.TrimSpace(in.DisplayName); in.Document=regexp.MustCompile(`[^0-9]`).ReplaceAllString(in.Document,""); in.OwnerUsername=strings.TrimSpace(in.OwnerUsername); in.OwnerName=strings.TrimSpace(in.OwnerName); in.OwnerEmail=strings.TrimSpace(in.OwnerEmail); in.PlanCode=strings.ToLower(strings.TrimSpace(in.PlanCode))
+		if in.LegalName==""||in.DisplayName==""||len(in.Document)<11||len(in.Document)>14||in.OwnerUsername==""||in.OwnerName==""||in.OwnerEmail==""||in.SeatLimit<1||in.SeatLimit>10000 { writeJSON(w,400,map[string]string{"error":"Dados da empresa, proprietário, documento ou limite de logins inválidos"}); return }
+		if _,mailErr:=mail.ParseAddress(in.OwnerEmail); mailErr!=nil { writeJSON(w,400,map[string]string{"error":"Informe um e-mail válido para o proprietário"}); return }; hash,err:=HashPassword(in.OwnerPassword); if err!=nil { writeJSON(w,400,map[string]string{"error":err.Error()}); return }
 		tx,err:=h.DB.BeginTx(r.Context(),nil); if err!=nil { writeJSON(w,500,map[string]string{"error":"Não foi possível iniciar cadastro"}); return }; defer tx.Rollback()
 		var planID string; if err=tx.QueryRowContext(r.Context(),"SELECT id::text FROM saas_plans WHERE code=$1 AND active=true",in.PlanCode).Scan(&planID); err!=nil { writeJSON(w,400,map[string]string{"error":"Plano não encontrado ou inativo"}); return }
 		var tenantID,userID string
 		err=tx.QueryRowContext(r.Context(),"INSERT INTO tenants(legal_name,display_name,document) VALUES($1,$2,$3) RETURNING id::text",in.LegalName,in.DisplayName,in.Document).Scan(&tenantID)
 		if err==nil { _,err=tx.ExecContext(r.Context(),"INSERT INTO tenant_subscriptions(tenant_id,plan_id,status,seat_limit) VALUES($1::uuid,$2::uuid,'active',$3)",tenantID,planID,in.SeatLimit) }
 		if err==nil { _,err=tx.ExecContext(r.Context(),"SELECT set_config('app.tenant_id',$1,true)",tenantID) }
-		if err==nil { err=tx.QueryRowContext(r.Context(),"INSERT INTO tenant_users(tenant_id,username,display_name,password_hash,role) VALUES($1::uuid,$2,$3,$4,'owner') RETURNING id::text",tenantID,in.OwnerUsername,in.OwnerName,hash).Scan(&userID) }
+		if err==nil { err=tx.QueryRowContext(r.Context(),"INSERT INTO tenant_users(tenant_id,username,display_name,email,password_hash,role) VALUES($1::uuid,$2,$3,$4,$5,'owner') RETURNING id::text",tenantID,in.OwnerUsername,in.OwnerName,in.OwnerEmail,hash).Scan(&userID) }
 		if err==nil {
 			_,err=tx.ExecContext(r.Context(),`INSERT INTO tenant_audit_events(tenant_id,event_type,entity_type,entity_id,details)
 				VALUES($1::uuid,'platform.tenant.created','tenant',$1,jsonb_build_object('platform_admin_id',$2::text,'seat_limit',$3::integer,'plan_code',$4::text))`,tenantID,platformAdminIDFromContext(r.Context()),in.SeatLimit,in.PlanCode)
